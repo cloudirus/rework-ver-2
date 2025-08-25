@@ -10,6 +10,8 @@ import 'package:http/http.dart' as http;
 import 'package:archive/archive_io.dart';
 import 'package:path/path.dart' as path;
 import 'package:http_parser/http_parser.dart';
+import 'dart:convert';
+import 'package:flutter/services.dart' show rootBundle;
 
 class ResultsScreen extends StatefulWidget {
   final String testType;
@@ -35,6 +37,7 @@ class _ResultsScreenState extends State<ResultsScreen> {
   final SessionStorage _sessionStorage = SessionStorage();
   final TestDataService _testDataService = TestDataService();
   final CameraService _cameraService = CameraService();
+  List<dynamic> _questions = [];
 
   @override
   void initState(){
@@ -48,7 +51,15 @@ class _ResultsScreenState extends State<ResultsScreen> {
     // saveStatistics(stats);
     // final loaded = loadStatistics();
     // print("✅ Loaded: $loaded");
+    _loadQuestions();
     _analyzeResults();
+  }
+
+  Future<void> _loadQuestions() async {
+    final String data = await rootBundle.loadString('assets/questions.json');
+    setState(() {
+      _questions = json.decode(data)['questions'];
+    });
   }
 
   // Future<File> _getLocalFile() async {
@@ -187,6 +198,7 @@ class _ResultsScreenState extends State<ResultsScreen> {
         final eyeTrackingData = _cameraService.generateEyeTrackingData();
 
         // 1. Kết quả từ bài test
+        final questionnaireAnswers = currentSession.questionnaireResults;
         final testBasedResult = _createTestBasedAnalysis();
 
         // 2. Gọi AI service
@@ -234,10 +246,49 @@ class _ResultsScreenState extends State<ResultsScreen> {
   }
 
 
+  double _weightBasedOnQuestionnare(
+      List<TestResult> questionnaireResults, List<dynamic> questions) {
+    int totalScore = 0;
+
+    for (int i = 0; i < questionnaireResults.length; i++) {
+      final r = questionnaireResults[i];
+      final q = questions[i]; // the corresponding question
+      final options = List<String>.from(q['options']);
+
+      // Find index of the chosen answer
+      final index = options.indexOf(r.userResponse);
+      if (index != -1) {
+        totalScore += (index + 1); // option index 0 → 1pt, 1 → 2pt, 2 → 3pt
+      }
+    }
+
+    double weight = 0.00;
+    if (totalScore <= 10) {
+      weight = 1;
+    } else if (totalScore <= 20) {
+      weight = 0.95;
+    } else {
+      weight = 0.9;
+    }
+    return weight;
+  }
+
   VisionAnalysisResult _createTestBasedAnalysis() {
+    final currentSession = _sessionManager.getCurrentSession();
+    if (currentSession == null || _questions.isEmpty) {
+      return VisionAnalysisResult(
+        visionScore: 0,
+        riskLevel: "Unknown",
+        diagnosis: "Không đủ dữ liệu để phân tích",
+        recommendations: ["Thử lại bài kiểm tra"],
+        confidence: 0.0,
+        eyeAnalysis: null,
+      );
+    }
+    double questionnaireWeight = _weightBasedOnQuestionnare(currentSession.questionnaireResults, _questions);
     final correctAnswers = widget.testResults.where((r) => r.isCorrect).length;
     final totalQuestions = widget.testResults.length;
-    final accuracy = totalQuestions > 0 ? correctAnswers / totalQuestions : 0.0;
+    final accuracy = totalQuestions > 0 ? (correctAnswers / totalQuestions)*questionnaireWeight : 0.0;
 
     // Determine risk level based on test performance only
     String riskLevel;
