@@ -1,4 +1,3 @@
-// questionnaire_screen.dart
 import 'dart:convert';
 import 'package:flutter/material.dart';
 import 'package:flutter/services.dart' show rootBundle;
@@ -16,7 +15,6 @@ class QuestionnaireScreen extends StatefulWidget {
 class _QuestionnaireScreenState extends State<QuestionnaireScreen> {
   List<dynamic> _questions = [];
   final Map<int, String> _answers = {};
-  // String answersString = _answers.toString();
   int _currentIndex = 0;
   final List<TestResult> _testResults = [];
   final TestSessionManager _sessionManager = TestSessionManager();
@@ -25,7 +23,6 @@ class _QuestionnaireScreenState extends State<QuestionnaireScreen> {
   void initState() {
     super.initState();
     _loadQuestions();
-    // String answersString = _answers.toString();
   }
 
   Future<void> _loadQuestions() async {
@@ -50,26 +47,7 @@ class _QuestionnaireScreenState extends State<QuestionnaireScreen> {
     }
   }
 
-  // void _submit() {
-  //   debugPrint("User Answers: $_answers");
-  //   showDialog(
-  //     context: context,
-  //     builder: (_) => AlertDialog(
-  //       title: const Text("Responses"),
-  //       content: Text(_answers.toString()),
-  //       actions: [
-  //         TextButton(
-  //           onPressed: () {
-  //             _completeQuestionnaire();
-  //           },
-  //           child: const Text("Close"),
-  //         )
-  //       ],
-  //     ),
-  //   );
-  // }
-
-  Future<void> _completeQuestionnaire() async{
+  Future<void> _completeQuestionnaire() async {
     String answersString = _answers.toString();
 
     final result = TestResult(
@@ -110,48 +88,94 @@ class _QuestionnaireScreenState extends State<QuestionnaireScreen> {
     final options = question["options"] as List<dynamic>;
 
     return Scaffold(
+      backgroundColor: const Color(0xFFF7F7F7), // pastel background
       appBar: AppBar(
-        title: Text("Question ${_currentIndex + 1}/${_questions.length}"),
+        elevation: 0,
+        backgroundColor: Colors.blue,
+        centerTitle: false, // make sure it's left-aligned
+        title: Row(
+          mainAxisSize: MainAxisSize.min, // keeps content compact on the left
+          children: const [
+            Icon(Icons.remove_red_eye, color: Colors.white),
+            SizedBox(width: 8),
+            Text(
+              "Câu hỏi",
+              style: TextStyle(
+                color: Colors.white,
+                fontWeight: FontWeight.bold,
+              ),
+            ),
+          ],
+        ),
       ),
       body: Padding(
         padding: const EdgeInsets.all(16.0),
-        child: Column(
-          crossAxisAlignment: CrossAxisAlignment.start,
-          children: [
-            Text(
-              question["question"],
-              style: const TextStyle(fontSize: 20, fontWeight: FontWeight.bold),
-            ),
-            const SizedBox(height: 20),
-            ...options.map((option) {
-              return RadioListTile<String>(
-                title: Text(option),
-                value: option,
-                groupValue: _answers[_currentIndex],
-                onChanged: (value) {
-                  setState(() {
-                    _answers[_currentIndex] = value!;
-                  });
-                },
-              );
-            }),
-            const Spacer(),
-            Row(
-              mainAxisAlignment: MainAxisAlignment.spaceBetween,
+        child: Card(
+          elevation: 3,
+          shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(16)),
+          child: Padding(
+            padding: const EdgeInsets.all(20),
+            child: Column(
+              crossAxisAlignment: CrossAxisAlignment.start,
               children: [
-                if (_currentIndex > 0)
-                  ElevatedButton(
-                    onPressed: _prev,
-                    child: const Text("Back"),
-                  ),
-                ElevatedButton(
-                  onPressed: _answers[_currentIndex] != null ? _next : null,
-                  child: Text(
-                      _currentIndex == _questions.length - 1 ? "Submit" : "Next"),
+                Text(
+                  question["question"],
+                  style: const TextStyle(fontSize: 18, fontWeight: FontWeight.bold),
                 ),
+                const SizedBox(height: 20),
+
+                // Answer options
+                ...options.map((option) {
+                  return RadioListTile<String>(
+                    value: option,
+                    groupValue: _answers[_currentIndex],
+                    onChanged: (value) {
+                      setState(() {
+                        _answers[_currentIndex] = value!;
+                      });
+                    },
+                    title: Text(option, style: const TextStyle(fontSize: 16)),
+                    activeColor: Colors.blue,
+                  );
+                }),
+
+                const Spacer(),
+
+                // Navigation buttons
+                Row(
+                  mainAxisAlignment: MainAxisAlignment.spaceBetween,
+                  children: [
+                    if (_currentIndex > 0)
+                      ElevatedButton(
+                        style: ElevatedButton.styleFrom(
+                          backgroundColor: Colors.grey.shade400,
+                          shape: RoundedRectangleBorder(
+                            borderRadius: BorderRadius.circular(12),
+                          ),
+                          padding: const EdgeInsets.symmetric(horizontal: 20, vertical: 12),
+                        ),
+                        onPressed: _prev,
+                        child: const Text("Quay lại", style: TextStyle(color: Colors.white)),
+                      ),
+                    ElevatedButton(
+                      style: ElevatedButton.styleFrom(
+                        backgroundColor: Colors.blue,
+                        shape: RoundedRectangleBorder(
+                          borderRadius: BorderRadius.circular(12),
+                        ),
+                        padding: const EdgeInsets.symmetric(horizontal: 24, vertical: 12),
+                      ),
+                      onPressed: _answers[_currentIndex] != null ? _next : null,
+                      child: Text(
+                        _currentIndex == _questions.length - 1 ? "Hoàn tất" : "Tiếp tục",
+                        style: const TextStyle(color: Colors.white, fontWeight: FontWeight.bold),
+                      ),
+                    ),
+                  ],
+                )
               ],
             ),
-          ],
+          ),
         ),
       ),
     );
