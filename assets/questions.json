@@ -1,0 +1,84 @@
+{
+  "questions": [
+    {
+      "question": "Bạn có cảm thấy thị lực giảm dần theo thời gian không?",
+      "options": ["Không thay đổi", "Có, giảm nhẹ", "Có, giảm rõ và ảnh hưởng sinh hoạt"]
+    },
+    {
+      "question": "Bạn có thấy 'ruồi bay' hoặc các chấm đen trôi nổi trong tầm nhìn không?",
+      "options": ["Không", "Thỉnh thoảng", "Xuất hiện gần đây, nhiều hơn"]
+    },
+    {
+      "question": "Bạn có nhìn thấy tia chớp sáng bất thường khi ở trong bóng tối hoặc nhắm mắt không?",
+      "options": ["Không", "Thỉnh thoảng", "Gần đây xuất hiện nhiều, bất thường"]
+    },
+    {
+      "question": "Khi đọc sách/xem TV, bạn có thấy hình ảnh bị méo mó hoặc mất nét ở vùng trung tâm không?",
+      "options": ["Không", "Có nhẹ", "Có rõ rệt, ảnh hưởng hoạt động hằng ngày"]
+    },
+    {
+      "question": "Bạn có từng mất thị lực đột ngột trong vài phút đến vài giờ không?",
+      "options": ["Không", "Có, hồi phục", "Có, kéo dài hoặc tái phát"]
+    },
+    {
+      "question": "Bạn có bị đau nhức sâu trong mắt, nhất là về chiều tối không?",
+      "options": ["Không", "Có nhẹ", "Có nhiều, kèm nhức đầu/buồn nôn"]
+    },
+    {
+      "question": "Bạn có nhạy cảm đặc biệt với ánh sáng (chói, chảy nước mắt khi ra ngoài)?",
+      "options": ["Không", "Có nhẹ", "Có thường xuyên/kéo dài"]
+    },
+    {
+      "question": "Mắt bạn có đỏ kèm ghèn, đau rát, sưng mí mắt không?",
+      "options": ["Không", "Có nhẹ, tự khỏi", "Có kéo dài hoặc tái phát nhiều lần"]
+    },
+    {
+      "question": "Bạn có cảm giác như có dị vật hoặc cát trong mắt không?",
+      "options": ["Không", "Có thỉnh thoảng", "Có thường xuyên"]
+    },
+    {
+      "question": "Bạn có từng bị chấn thương mắt (vật nhọn, tia sáng mạnh, hóa chất...) không?",
+      "options": ["Không", "Có, đã hồi phục", "Có, và còn ảnh hưởng thị lực"]
+    },
+    {
+      "question": "Bạn có mắc các bệnh mạn tính như tiểu đường, tăng huyết áp, mỡ máu không?",
+      "options": ["Không", "Có, kiểm soát tốt", "Có, nhưng kiểm soát kém hoặc biến chứng"]
+    },
+    {
+      "question": "Bạn có tiền sử bệnh mắt như đục thủy tinh thể, tăng nhãn áp, thoái hóa điểm vàng không?",
+      "options": ["Không", "Có 1 bệnh", "Có từ 2 bệnh trở lên"]
+    },
+    {
+      "question": "Trong gia đình bạn có ai bị bệnh mắt nặng hoặc mù loà không?",
+      "options": ["Không", "Có người lớn tuổi", "Có nhiều người hoặc trẻ mắc sớm"]
+    },
+    {
+      "question": "Bạn có hút thuốc hoặc tiếp xúc nhiều với khói thuốc không?",
+      "options": ["Không", "Thỉnh thoảng", "Thường xuyên/nhiều năm"]
+    },
+    {
+      "question": "Bạn có dùng các loại thuốc ảnh hưởng đến mắt (thuốc kháng viêm, thuốc chống động kinh...) không?",
+      "options": ["Không", "Có, theo chỉ định", "Có, không theo dõi thường xuyên"]
+    },
+    {
+      "question": "Bạn có làm việc nhiều với máy tính, điện thoại hoặc màn hình sáng?",
+      "options": ["Dưới 2 giờ/ngày", "2–6 giờ/ngày", "Trên 6 giờ/ngày"]
+    },
+    {
+      "question": "Bạn có bị khô mắt, mỏi mắt sau khi làm việc không?",
+      "options": ["Không", "Có nhẹ", "Có rõ rệt, cần nhỏ thuốc thường xuyên "]
+    },
+    {
+      "question": "Bạn có đang sử dụng kính thuốc nhưng vẫn nhìn không rõ?",
+      "options": ["Không", "Có đôi khi", "Có thường xuyên, phải đổi kính liên tục"]
+    },
+    {
+      "question": "Bạn có đi khám mắt định kỳ hàng năm không?",
+      "options": ["Có", "Thỉnh thoảng", "Không bao giờ hoặc đã lâu chưa khám"]
+    },
+    {
+      "question": "Gần đây bạn có thấy thị lực thay đổi nhanh chóng trong vài tuần gần đây không?",
+      "options": ["Không", "Có chút thay đổi", "Có rõ rệt, cần hỗ trợ thị giác"]
+    }
+  ]
+}
