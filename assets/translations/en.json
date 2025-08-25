@@ -1,0 +1,21 @@
+{
+  "app_name": "DesertStorm",
+  "hello": "Xin chào",
+  "welcome": "Chào mừng bạn đến với ứng dụng DesertStorm",
+  "login": "Đăng nhập",
+  "logout": "Đăng xuất",
+  "email": "Email",
+  "password": "Mật khẩu",
+  "confirm_password": "Xác nhận mật khẩu",
+  "sign_up": "Đăng ký",
+  "sign_in": "Đăng nhập",
+  "forgot_password": "Quên mật khẩu?",
+  "settings": "Cài đặt",
+  "language": "Ngôn ngữ",
+  "profile": "Hồ sơ",
+  "save": "Lưu",
+  "cancel": "Hủy",
+  "ok": "Đồng ý",
+  "error": "Đã xảy ra lỗi",
+  "success": "Thao tác thành công"
+}
