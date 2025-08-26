@@ -13,6 +13,53 @@ import 'package:http_parser/http_parser.dart';
 import 'dart:convert';
 import 'package:flutter/services.dart' show rootBundle;
 
+class AnalysisResultLog {
+  final double accuracy;
+  final String riskLevel;
+  final String diagnosis;
+  final DateTime timestamp;
+
+  AnalysisResultLog({
+    required this.accuracy,
+    required this.riskLevel,
+    required this.diagnosis,
+    required this.timestamp,
+  });
+
+  Map<String, dynamic> toJson() => {
+    'accuracy': accuracy,
+    'riskLevel': riskLevel,
+    'diagnosis': diagnosis,
+    'timestamp': timestamp.toIso8601String(),
+  };
+}
+
+// ========================
+//  STORAGE: Save/Load JSON
+// ========================
+class AnalysisResultStorage {
+  static Future<Directory> _getHistoryDir() async {
+    final dir = await getApplicationDocumentsDirectory();
+    final historyDir = Directory("${dir.path}/run_history");
+
+    if (!await historyDir.exists()) {
+      await historyDir.create(recursive: true);
+    }
+    return historyDir;
+  }
+
+  static Future<void> saveResult(AnalysisResultLog result) async {
+    final dir = await _getHistoryDir();
+
+    // Use timestamp as filename, e.g. 2025-08-26_14-30-12.json
+    final filename = result.timestamp.toIso8601String().replaceAll(":", "-");
+    final file = File("${dir.path}/$filename.json");
+
+    await file.writeAsString(jsonEncode(result.toJson()));
+    print("✅ Saved analysis result to ${file.path}");
+  }
+}
+
 class ResultsScreen extends StatefulWidget {
   final String testType;
   final List<TestResult> testResults;
@@ -304,10 +351,10 @@ class _ResultsScreenState extends State<ResultsScreen> {
     }
     print("Total score is $totalScore");
     double weight = 0.00;
-    if (totalScore <= 10) {
+    if (totalScore <= 20) {
       weight = 1;
       print("Weight set at 1");
-    } else if (totalScore <= 20) {
+    } else if (totalScore <= 40) {
       weight = 0.85;
       print("Weight set at 0.95");
     } else {
@@ -372,6 +419,14 @@ class _ResultsScreenState extends State<ResultsScreen> {
       ];
     }
 
+    final log = AnalysisResultLog(
+      accuracy: accuracy,
+      riskLevel: riskLevel,
+      diagnosis: diagnosis,
+      timestamp: DateTime.now(),
+    );
+    AnalysisResultStorage.saveResult(log);
+
     return VisionAnalysisResult(
       visionScore: accuracy,
       riskLevel: riskLevel,
@@ -381,6 +436,7 @@ class _ResultsScreenState extends State<ResultsScreen> {
       eyeAnalysis: null, // Don't include AI analysis in results
     );
   }
+
 
   @override
   Widget build(BuildContext context) {
