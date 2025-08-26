@@ -293,14 +293,16 @@ class _ResultsScreenState extends State<ResultsScreen> {
         // 1. Kết quả từ bài test
         final questionnaireAnswers = currentSession.questionnaireResults;
         final testBasedResult = _createTestBasedAnalysis();
-
+        final int correctAnswers = currentSession.correctAnswers;
+        final int totalQuestions = currentSession.totalQuestions;
         // 2. Gọi AI service
         VisionAnalysisResult? mlResult;
         try {
           mlResult = await _mlService.analyzeVisionTest(
-            widget.testType,
-            widget.testResults,
+            correctAnswers,
+            totalQuestions,
             eyeTrackingData,
+            eyeAnalysis: null,
           );
           print("✅ ML Analysis: ${mlResult.diagnosis}");
         } catch (e) {
@@ -600,8 +602,8 @@ class _ResultsScreenState extends State<ResultsScreen> {
     Color scoreColor = result.riskLevel == 'Low'
         ? Colors.green
         : result.riskLevel == 'Medium'
-            ? Colors.orange
-            : Colors.red;
+        ? Colors.orange
+        : Colors.red;
 
     return Card(
       elevation: 4,
@@ -654,8 +656,8 @@ class _ResultsScreenState extends State<ResultsScreen> {
                     result.riskLevel == 'Low'
                         ? Icons.check_circle
                         : result.riskLevel == 'Medium'
-                            ? Icons.warning
-                            : Icons.error,
+                        ? Icons.warning
+                        : Icons.error,
                     size: 16,
                     color: scoreColor,
                   ),
