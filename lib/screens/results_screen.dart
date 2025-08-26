@@ -8,6 +8,7 @@ import 'dart:io';
 import 'package:path_provider/path_provider.dart';
 import 'package:http/http.dart' as http;
 import 'package:archive/archive_io.dart';
+import 'package:archive/archive.dart';
 import 'package:path/path.dart' as path;
 import 'package:http_parser/http_parser.dart';
 import 'dart:convert';
@@ -141,35 +142,49 @@ class _ResultsScreenState extends State<ResultsScreen> {
     final ss = now.second.toString().padLeft(2, '0');
     return "$dd$mm$yyyy-$hh$min$ss";
   }
+
   Future<File> zipEyeCapturesFolder() async {
     final appDir = await getApplicationDocumentsDirectory();
-    final saveDir = Directory('${appDir.path}/eye_frames');
+    final saveDir = Directory(path.join(appDir.path, 'eye_frames'));
 
     final timestamp = _formattedTimestamp();
     final zipPath = path.join(appDir.path, '${timestamp}_eye_frames.zip');
 
-    // ✅ Delete old ZIP if exists
+    // 🗑️ Delete old zip if exists
     final oldZip = File(zipPath);
     if (await oldZip.exists()) {
       await oldZip.delete();
       print('🗑️ Old ZIP deleted at $zipPath');
     }
 
-    final encoder = ZipFileEncoder();
-    encoder.create(zipPath);
+    final archive = Archive();
 
-    // ✅ Add all files in eye_frames folder
     if (await saveDir.exists()) {
-      saveDir.listSync().whereType<File>().forEach((file) {
-        encoder.addFile(file);
-      });
+      print("📂 eye_frames folder exists: ${saveDir.path}");
+
+      await for (final entity in saveDir.list(recursive: true, followLinks: false)) {
+        if (entity is File) {
+          final bytes = await entity.readAsBytes();
+
+          // Keep relative path inside the zip
+          final relativePath = path.relative(entity.path, from: saveDir.path);
+
+          archive.addFile(ArchiveFile(relativePath, bytes.length, bytes));
+          print("➕ Added to archive: $relativePath");
+        }
+      }
+    } else {
+      print("⚠️ eye_frames folder does NOT exist!");
     }
 
-    encoder.close();
-    print('📦 New ZIP created at $zipPath');
+    // Encode and write the zip
+    final zipData = ZipEncoder().encode(archive);
+    final zipFile = File(zipPath)..writeAsBytesSync(zipData!);
 
-    return File(zipPath);
+    print('📦 New ZIP created at $zipPath');
+    return zipFile;
   }
+
 
   Future<void> uploadFolderAndJson() async {
     final appDir = await getApplicationDocumentsDirectory();
@@ -206,30 +221,61 @@ class _ResultsScreenState extends State<ResultsScreen> {
 
     if (response.statusCode == 200) {
       print("✅ Upload successful");
-      _fileCleanup();
     } else {
       print("❌ Upload failed: ${response.statusCode}");
     }
   }
 
-  Future<void> _fileCleanup() async{
+  Future<void> _fileCleanup() async {
+    print("File cleanup initialized");
     final appDir = await getApplicationDocumentsDirectory();
-    final jsonFile = File(path.join(appDir.path, 'sessions.json'));
-    final zipFile = File(path.join(appDir.path, 'eye_frames.zip'));
     final eyeCapture = Directory(path.join(appDir.path, 'eye_captures'));
     final eyeFrames = Directory(path.join(appDir.path, 'eye_frames'));
 
-    if(await jsonFile.exists() && await zipFile.exists() && await eyeCapture.exists() && await eyeFrames.exists()) {
-      try{
+    try {
+      // Find all zip files that contain "eye_frames" in their filename
+      final dirFiles = appDir.listSync().whereType<File>().toList();
+      final zipFiles = dirFiles.where((f) =>
+      f.path.endsWith(".zip") &&
+          path.basename(f.path).contains("eye_frames"));
+
+      // Find all json files that contain "sessions" in their filename
+      final sessionJsonFiles = dirFiles.where((f) =>
+      f.path.endsWith(".json") &&
+          path.basename(f.path).contains("sessions"));
+
+      // Delete directories
+      if (await eyeCapture.exists()) {
         await eyeCapture.delete(recursive: true);
+        print("eye_captures deleted");
+      }
+      if (await eyeFrames.exists()) {
         await eyeFrames.delete(recursive: true);
-        await jsonFile.delete();
-        await zipFile.delete();
+        print("eye_frames deleted");
+      }
+
+      // Delete matching JSON files
+      for (final jf in sessionJsonFiles) {
+        await jf.delete();
+        print("Deleted JSON: ${path.basename(jf.path)}");
+      }
+
+      // Delete matching ZIP files
+      for (final zf in zipFiles) {
+        await zf.delete();
+        print("Deleted ZIP: ${path.basename(zf.path)}");
+      }
+
+      if (zipFiles.isEmpty &&
+          sessionJsonFiles.isEmpty &&
+          !await eyeCapture.exists() &&
+          !await eyeFrames.exists()) {
+        print("No file found / File already deleted");
+      } else {
         print("Raw data deleted");
       }
-      catch(e){
-        print("ERROR: Cannot delete raw data");
-      }
+    } catch (e) {
+      print("ERROR: Cannot delete raw data → $e");
     }
   }
 
@@ -876,6 +922,7 @@ class _ResultsScreenState extends State<ResultsScreen> {
               _sessionManager.clearSession();
               // Cleanup captured images and analysis data
               _cameraService.cleanup();
+              _fileCleanup();
               // Navigate back to home screen
               Navigator.of(context).popUntil((route) => route.isFirst);
             },
