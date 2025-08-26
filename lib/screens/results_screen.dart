@@ -250,25 +250,69 @@ class _ResultsScreenState extends State<ResultsScreen> {
       List<TestResult> questionnaireResults, List<dynamic> questions) {
     int totalScore = 0;
 
-    for (int i = 0; i < questionnaireResults.length; i++) {
-      final r = questionnaireResults[i];
-      final q = questions[i]; // the corresponding question
-      final options = List<String>.from(q['options']);
+    // Case A: your current storage (ONE TestResult with a Map-like string)
+    if (questionnaireResults.length == 1 &&
+        questionnaireResults.first.userResponse.trim().startsWith('{')) {
+      final raw = questionnaireResults.first.userResponse.trim();
 
-      // Find index of the chosen answer
-      final index = options.indexOf(r.userResponse);
-      if (index != -1) {
-        totalScore += (index + 1); // option index 0 → 1pt, 1 → 2pt, 2 → 3pt
+      // Matches:  "<qIndex>: <answerText>"  and stops before ", <nextIndex>:" or "}"
+      final entryRe = RegExp(r'(\d+):\s*(.*?)(?=,\s*\d+:|\s*\}$)');
+      final matches = entryRe.allMatches(raw);
+
+      for (final m in matches) {
+        final qIndex = int.tryParse(m.group(1)!);
+        if (qIndex == null || qIndex < 0 || qIndex >= questions.length) continue;
+
+        String ansText = m.group(2)!.trim();
+
+        // 1) Prefer numeric prefix in the answer itself: "1. ..." / "2. ..." / "3. ..."
+        final numPrefix = RegExp(r'^\s*(\d+)\.').firstMatch(ansText);
+        if (numPrefix != null) {
+          totalScore += int.parse(numPrefix.group(1)!);
+          continue;
+        }
+
+        // 2) Fallback: match against the question options ignoring the numeric prefix
+        final opts = List<String>.from(questions[qIndex]['options']).cast<String>();
+        String stripPrefix(String s) =>
+            s.replaceFirst(RegExp(r'^\s*\d+\.\s*'), '').trim();
+
+        final ansNoPrefix = stripPrefix(ansText);
+        final idx = opts.map(stripPrefix).toList().indexOf(ansNoPrefix);
+        if (idx != -1) {
+          totalScore += (idx + 1); // option # -> points
+        }
+      }
+    } else {
+      // Case B: future-proof — one TestResult per question
+      for (int i = 0; i < questionnaireResults.length && i < questions.length; i++) {
+        final ansText = questionnaireResults[i].userResponse.trim();
+
+        final numPrefix = RegExp(r'^\s*(\d+)\.').firstMatch(ansText);
+        if (numPrefix != null) {
+          totalScore += int.parse(numPrefix.group(1)!);
+          continue;
+        }
+
+        final opts = List<String>.from(questions[i]['options']).cast<String>();
+        String stripPrefix(String s) =>
+            s.replaceFirst(RegExp(r'^\s*\d+\.\s*'), '').trim();
+
+        final idx = opts.map(stripPrefix).toList().indexOf(stripPrefix(ansText));
+        if (idx != -1) totalScore += (idx + 1);
       }
     }
-
+    print("Total score is $totalScore");
     double weight = 0.00;
     if (totalScore <= 10) {
       weight = 1;
+      print("Weight set at 1");
     } else if (totalScore <= 20) {
-      weight = 0.95;
+      weight = 0.85;
+      print("Weight set at 0.95");
     } else {
-      weight = 0.9;
+      weight = 0.7;
+      print("Weight set at 0.9");
     }
     return weight;
   }
@@ -288,7 +332,11 @@ class _ResultsScreenState extends State<ResultsScreen> {
     double questionnaireWeight = _weightBasedOnQuestionnare(currentSession.questionnaireResults, _questions);
     final correctAnswers = widget.testResults.where((r) => r.isCorrect).length;
     final totalQuestions = widget.testResults.length;
-    final accuracy = totalQuestions > 0 ? (correctAnswers / totalQuestions)*questionnaireWeight : 0.0;
+    final accuracyBeforeWeight = totalQuestions > 0 ? (correctAnswers / totalQuestions) : 0.0;
+    final accuracy = accuracyBeforeWeight*questionnaireWeight;
+
+    print("Accuracy before weight: $accuracyBeforeWeight");
+    print("Accuracy after weight: $accuracy");
 
     // Determine risk level based on test performance only
     String riskLevel;
