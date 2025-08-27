@@ -4,24 +4,32 @@ import 'package:flutter/material.dart';
 import 'package:path_provider/path_provider.dart';
 
 class AnalysisResultLog {
-  final double accuracy;
+  final DateTime timestamp;
+  final int durations;
+  final double visionScore;
   final String riskLevel;
   final String diagnosis;
-  final DateTime timestamp;
+  final List<String> recommendations;
 
   AnalysisResultLog({
-    required this.accuracy,
+    required this.timestamp,
+    required this.durations,
+    required this.visionScore,
     required this.riskLevel,
     required this.diagnosis,
-    required this.timestamp,
+    required this.recommendations,
   });
 
   factory AnalysisResultLog.fromJson(Map<String, dynamic> json) {
     return AnalysisResultLog(
-      accuracy: (json['accuracy'] as num).toDouble(),
-      riskLevel: json['riskLevel'],
-      diagnosis: json['diagnosis'],
       timestamp: DateTime.parse(json['timestamp']),
+      durations: (json['durations'] as num?)?.toInt() ?? 0,
+      visionScore: (json['visionScore'] as num?)?.toDouble() ?? 0.0,
+      riskLevel: json['riskLevel'] ?? "Unknown",
+      diagnosis: json['diagnosis'] ?? "No diagnosis",
+      recommendations: json['recommendations'] is List
+          ? List<String>.from(json['recommendations'])
+          : [],
     );
   }
 }
@@ -46,7 +54,11 @@ class AnalysisResultStorage {
         final content = await file.readAsString();
         final data = jsonDecode(content);
         results.add(AnalysisResultLog.fromJson(data));
-      } catch (_) {}
+        print("File $file loaded!");
+      } catch (e, stack) {
+        print("ERROR: File $file cannot load → $e");
+        print(stack);
+      }
     }
 
     results.sort((a, b) => b.timestamp.compareTo(a.timestamp));
@@ -131,7 +143,7 @@ class _HistoryScreenState extends State<HistoryScreen> {
   Widget build(BuildContext context) {
     final total = _history.length;
     final avgScore = total > 0
-        ? _history.map((e) => e.accuracy).reduce((a, b) => a + b) / total
+        ? _history.map((e) => e.visionScore).reduce((a, b) => a + b) / total
         : 0.0;
     final lowRisk = _history.where((e) => e.riskLevel == "Low").length;
 
@@ -211,7 +223,7 @@ class _HistoryScreenState extends State<HistoryScreen> {
                     const Icon(Icons.visibility, color: Colors.blue),
                     title: Text("Run: ${_formatDate(run.timestamp)}"),
                     subtitle: Text(
-                      "Điểm: ${(run.accuracy * 100).toStringAsFixed(1)}% | Rủi ro: ${run.riskLevel}",
+                      "Điểm: ${(run.visionScore * 100).toStringAsFixed(1)}% | Rủi ro: ${run.riskLevel}",
                     ),
                     onTap: () {
                       showDialog(
@@ -224,7 +236,7 @@ class _HistoryScreenState extends State<HistoryScreen> {
                             children: [
                               Text("Ngày: ${_formatDate(run.timestamp)}"),
                               Text(
-                                  "Điểm: ${(run.accuracy * 100).toStringAsFixed(1)}%"),
+                                  "Điểm: ${(run.visionScore * 100).toStringAsFixed(1)}%"),
                               Text("Rủi ro: ${run.riskLevel}"),
                               Text("Chẩn đoán: ${run.diagnosis}"),
                             ],

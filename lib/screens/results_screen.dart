@@ -15,49 +15,69 @@ import 'dart:convert';
 import 'package:flutter/services.dart' show rootBundle;
 
 class AnalysisResultLog {
-  final double accuracy;
+  final DateTime timestamp;
+  final int durations;
+  final double visionScore;
   final String riskLevel;
   final String diagnosis;
-  final DateTime timestamp;
+  final List<String> recommendations;
 
   AnalysisResultLog({
-    required this.accuracy,
+    required this.timestamp,
+    required this.durations,
+    required this.visionScore,
     required this.riskLevel,
     required this.diagnosis,
-    required this.timestamp,
+    required this.recommendations,
   });
 
-  Map<String, dynamic> toJson() => {
-    'accuracy': accuracy,
-    'riskLevel': riskLevel,
-    'diagnosis': diagnosis,
-    'timestamp': timestamp.toIso8601String(),
-  };
+  factory AnalysisResultLog.fromJson(Map<String, dynamic> json) {
+    return AnalysisResultLog(
+      timestamp: DateTime.parse(json['timestamp']),
+      durations: (json['durations'] as num?)?.toInt() ?? 0,
+      visionScore: (json['visionScore'] as num?)?.toDouble() ?? 0.0,
+      riskLevel: json['riskLevel'] ?? "Unknown",
+      diagnosis: json['diagnosis'] ?? "No diagnosis",
+      recommendations: json['recommendations'] is List
+          ? List<String>.from(json['recommendations'])
+          : [],
+    );
+  }
 }
 
-// ========================
-//  STORAGE: Save/Load JSON
-// ========================
 class AnalysisResultStorage {
   static Future<Directory> _getHistoryDir() async {
     final dir = await getApplicationDocumentsDirectory();
     final historyDir = Directory("${dir.path}/run_history");
-
     if (!await historyDir.exists()) {
       await historyDir.create(recursive: true);
     }
     return historyDir;
   }
 
-  static Future<void> saveResult(AnalysisResultLog result) async {
+  static Future<AnalysisResultLog?> loadLatestRun() async {
     final dir = await _getHistoryDir();
+    final files = dir
+        .listSync()
+        .whereType<File>()
+        .toList();
 
-    // Use timestamp as filename, e.g. 2025-08-26_14-30-12.json
-    final filename = result.timestamp.toIso8601String().replaceAll(":", "-");
-    final file = File("${dir.path}/$filename.json");
+    if (files.isEmpty) return null;
 
-    await file.writeAsString(jsonEncode(result.toJson()));
-    print("✅ Saved analysis result to ${file.path}");
+    // Find the newest file by last modified date
+    files.sort((a, b) => b.lastModifiedSync().compareTo(a.lastModifiedSync()));
+    final newestFile = files.first;
+
+    try {
+      final content = await newestFile.readAsString();
+      final data = jsonDecode(content);
+      print("Newest file ${newestFile.path} loaded!");
+      return AnalysisResultLog.fromJson(data);
+    } catch (e, stack) {
+      print("ERROR: File ${newestFile.path} cannot load → $e");
+      print(stack);
+      return null;
+    }
   }
 }
 
@@ -90,15 +110,6 @@ class _ResultsScreenState extends State<ResultsScreen> {
   @override
   void initState(){
     super.initState();
-    // final stats = TestDataService().getTestStatistics();
-    // final jsonString = const JsonEncoder.withIndent('  ').convert(stats);
-    // final file = File('test_statistics.json');
-    // file.writeAsString(jsonString);
-    //
-    // print('✅ Statistics saved at: ${file.path}');
-    // saveStatistics(stats);
-    // final loaded = loadStatistics();
-    // print("✅ Loaded: $loaded");
     _loadQuestions();
     _analyzeResults();
   }
@@ -110,28 +121,6 @@ class _ResultsScreenState extends State<ResultsScreen> {
     });
   }
 
-  // Future<File> _getLocalFile() async {
-  //   // Get the app's document directory (safe & persistent)
-  //   final directory = await getApplicationDocumentsDirectory();
-  //   return File('${directory.path}/test_statistics.json');
-  // }
-  // Future<void> saveStatistics(Map<String, dynamic> stats) async {
-  //   final file = await _getLocalFile();
-  //   final jsonString = jsonEncode(stats);
-  //   await file.writeAsString(jsonString);
-  //   print("📂 Saved stats at: ${file.path}");
-  // }
-
-  // Future<Map<String, dynamic>> loadStatistics() async {
-  //   final file = await _getLocalFile();
-  //
-  //   if (await file.exists()) {
-  //     final contents = await file.readAsString();
-  //     return jsonDecode(contents);
-  //   } else {
-  //     return {}; // return empty if file doesn’t exist
-  //   }
-  // }
   String _formattedTimestamp() {
     final now = DateTime.now();
     final dd = now.day.toString().padLeft(2, '0');
@@ -292,7 +281,7 @@ class _ResultsScreenState extends State<ResultsScreen> {
 
         // 1. Kết quả từ bài test
         final questionnaireAnswers = currentSession.questionnaireResults;
-        final testBasedResult = _createTestBasedAnalysis();
+        final testBasedResult = await _createTestBasedAnalysis();
 
         // 2. Gọi AI service
         VisionAnalysisResult? mlResult;
@@ -338,79 +327,7 @@ class _ResultsScreenState extends State<ResultsScreen> {
     }
   }
 
-
-  double _weightBasedOnQuestionnare(
-      List<TestResult> questionnaireResults, List<dynamic> questions) {
-    int totalScore = 0;
-
-    // Case A: your current storage (ONE TestResult with a Map-like string)
-    if (questionnaireResults.length == 1 &&
-        questionnaireResults.first.userResponse.trim().startsWith('{')) {
-      final raw = questionnaireResults.first.userResponse.trim();
-
-      // Matches:  "<qIndex>: <answerText>"  and stops before ", <nextIndex>:" or "}"
-      final entryRe = RegExp(r'(\d+):\s*(.*?)(?=,\s*\d+:|\s*\}$)');
-      final matches = entryRe.allMatches(raw);
-
-      for (final m in matches) {
-        final qIndex = int.tryParse(m.group(1)!);
-        if (qIndex == null || qIndex < 0 || qIndex >= questions.length) continue;
-
-        String ansText = m.group(2)!.trim();
-
-        // 1) Prefer numeric prefix in the answer itself: "1. ..." / "2. ..." / "3. ..."
-        final numPrefix = RegExp(r'^\s*(\d+)\.').firstMatch(ansText);
-        if (numPrefix != null) {
-          totalScore += int.parse(numPrefix.group(1)!);
-          continue;
-        }
-
-        // 2) Fallback: match against the question options ignoring the numeric prefix
-        final opts = List<String>.from(questions[qIndex]['options']).cast<String>();
-        String stripPrefix(String s) =>
-            s.replaceFirst(RegExp(r'^\s*\d+\.\s*'), '').trim();
-
-        final ansNoPrefix = stripPrefix(ansText);
-        final idx = opts.map(stripPrefix).toList().indexOf(ansNoPrefix);
-        if (idx != -1) {
-          totalScore += (idx + 1); // option # -> points
-        }
-      }
-    } else {
-      // Case B: future-proof — one TestResult per question
-      for (int i = 0; i < questionnaireResults.length && i < questions.length; i++) {
-        final ansText = questionnaireResults[i].userResponse.trim();
-
-        final numPrefix = RegExp(r'^\s*(\d+)\.').firstMatch(ansText);
-        if (numPrefix != null) {
-          totalScore += int.parse(numPrefix.group(1)!);
-          continue;
-        }
-
-        final opts = List<String>.from(questions[i]['options']).cast<String>();
-        String stripPrefix(String s) =>
-            s.replaceFirst(RegExp(r'^\s*\d+\.\s*'), '').trim();
-
-        final idx = opts.map(stripPrefix).toList().indexOf(stripPrefix(ansText));
-        if (idx != -1) totalScore += (idx + 1);
-      }
-    }
-    print("Total score is $totalScore");
-    double weight = 0.00;
-    if (totalScore <= 20) {
-      weight = 1;
-      print("Weight set at 1");
-    } else if (totalScore <= 40) {
-      weight = 0.85;
-      print("Weight set at 0.95");
-    } else {
-      weight = 0.7;
-      print("Weight set at 0.9");
-    }
-    return weight;
-  }
-
-  VisionAnalysisResult _createTestBasedAnalysis() {
+  Future<VisionAnalysisResult> _createTestBasedAnalysis() async {
     final currentSession = _sessionManager.getCurrentSession();
     if (currentSession == null || _questions.isEmpty) {
       return VisionAnalysisResult(
@@ -422,14 +339,8 @@ class _ResultsScreenState extends State<ResultsScreen> {
         eyeAnalysis: null,
       );
     }
-    double questionnaireWeight = _weightBasedOnQuestionnare(currentSession.questionnaireResults, _questions);
-    final correctAnswers = widget.testResults.where((r) => r.isCorrect).length;
-    final totalQuestions = widget.testResults.length;
-    final accuracyBeforeWeight = totalQuestions > 0 ? (correctAnswers / totalQuestions) : 0.0;
-    final accuracy = accuracyBeforeWeight*questionnaireWeight;
-
-    print("Accuracy before weight: $accuracyBeforeWeight");
-    print("Accuracy after weight: $accuracy");
+    final run = await AnalysisResultStorage.loadLatestRun();
+    final accuracy = run!.visionScore;
 
     // Determine risk level based on test performance only
     String riskLevel;
@@ -465,13 +376,6 @@ class _ResultsScreenState extends State<ResultsScreen> {
       ];
     }
 
-    final log = AnalysisResultLog(
-      accuracy: accuracy,
-      riskLevel: riskLevel,
-      diagnosis: diagnosis,
-      timestamp: DateTime.now(),
-    );
-    AnalysisResultStorage.saveResult(log);
 
     return VisionAnalysisResult(
       visionScore: accuracy,
@@ -922,6 +826,7 @@ class _ResultsScreenState extends State<ResultsScreen> {
               _sessionManager.clearSession();
               // Cleanup captured images and analysis data
               _cameraService.cleanup();
+              _testDataService.getTestStatistics();
               _fileCleanup();
               // Navigate back to home screen
               Navigator.of(context).popUntil((route) => route.isFirst);
