@@ -6,6 +6,9 @@ import 'package:path/path.dart' as path;
 import 'ml_service.dart';
 
 class CameraService {
+  CameraController? _cameraController;
+  CameraController? get controller => _cameraController;
+
   static final CameraService _instance = CameraService._internal();
   factory CameraService() => _instance;
   CameraService._internal();
@@ -18,14 +21,35 @@ class CameraService {
   bool _shouldStopCapturing = false;
   // bool _stopFlag = false;
 
+  Future<void> startCamera(CameraDescription description) async {
+    _cameraController = CameraController(
+      description,
+      ResolutionPreset.medium,
+      enableAudio: false,
+    );
+    await _cameraController!.initialize();
+    print("📷 Camera started");
+  }
 
-  Future<String?> captureEyeImage(CameraController cameraController, {String? testType}) async {
-    if (_isCapturing || _shouldStopCapturing) return null;
+  Future<void> stopCamera() async {
+    if (_cameraController != null) {
+      await _cameraController!.dispose();
+      _cameraController = null;
+      print("🛑 Camera fully stopped");
+    }
+  }
 
-    if (!cameraController.value.isInitialized) {
+  bool get isCameraActive => _cameraController != null;
+
+
+  Future<String?> captureEyeImage({String? testType}) async {
+    final cameraController = _cameraController;
+    if (cameraController == null || !cameraController.value.isInitialized) {
       print('⚠️ Camera not initialized');
       return null;
     }
+
+    if (_isCapturing || _shouldStopCapturing) return null;
 
     _isCapturing = true;
     try {
@@ -33,13 +57,8 @@ class CameraService {
       final timestamp = DateTime.now().millisecondsSinceEpoch;
       final imagePath = path.join(tempDir.path, 'eye_capture_$timestamp.jpg');
 
-      // Capture first (locks ImageReader buffer)
       final XFile imageFile = await cameraController.takePicture();
 
-      // Immediately release the capture flag (free buffer sooner)
-      _isCapturing = false;
-
-      // Then copy to your app storage
       final File savedImage = await File(imageFile.path).copy(imagePath);
       _capturedImages.add(savedImage.path);
 
@@ -59,8 +78,10 @@ class CameraService {
     // Staggered captures during test session
     for (int i = 0; i < 3; i++) {
       await Future.delayed(Duration(seconds: 2 + i * 3)); // Stagger captures
-      await captureEyeImage(cameraController, testType: testType);
+      await captureEyeImage(testType: testType);
+
     }
+    await stopCamera();
     //   while(_stopFlag){
     //     await captureEyeImage(cameraController, testType: testType);
     //     await Future.delayed(Duration(seconds: 1));
@@ -73,7 +94,7 @@ class CameraService {
 
   Future<void> saveAllCapturedImages() async {
     final appDir = await getApplicationDocumentsDirectory();
-    final saveDir = Directory('${appDir.path}/eye_captures');
+    final saveDir = Directory('${appDir.path}/eye_frames');
     // stopCaptureSession();
 
     // Create folder if it doesn't exist
@@ -205,7 +226,8 @@ class CameraService {
         break;
       }
 
-      await captureEyeImage(cameraController, testType: testType);
+      await captureEyeImage(testType: testType);
+
     }
   }
 
@@ -214,6 +236,7 @@ class CameraService {
     _captureTimer?.cancel();
     _captureTimer = null;
     print('🛑 Periodic capture stopped');
+    stopCamera();
   }
 
   List<EyeTrackingData> generateEyeTrackingData() {

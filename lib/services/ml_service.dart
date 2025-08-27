@@ -160,97 +160,94 @@ class MLService {
 
   Future<void> _loadFundusModel() async {
     try {
-      final modelData = await rootBundle.load(_fundusModelPath);
-      final modelBytes = modelData.buffer.asUint8List();
-      _fundusInterpreter = Interpreter.fromBuffer(modelBytes);
+      _fundusInterpreter = await Interpreter.fromAsset(
+        'assets/models/eye_effnet_fp16.tflite',
+        options: InterpreterOptions()..threads = 2, // optional
+      );
       _isFundusLoaded = true;
       print("✅ Fundus model loaded");
     } catch (e) {
       print("❌ Error loading fundus model: $e");
-      _isFundusLoaded = false;
     }
   }
 
   Future<void> _loadOuterModel() async {
     try {
-      final modelData = await rootBundle.load(_outerModelPath);
-      final modelBytes = modelData.buffer.asUint8List();
-      _outerInterpreter = Interpreter.fromBuffer(modelBytes);
+      _outerInterpreter = await Interpreter.fromAsset(
+        'assets/models/outer_eye_effnet.tflite',
+        options: InterpreterOptions()..threads = 2,
+      );
       _isOuterLoaded = true;
       print("✅ Outer eye model loaded");
     } catch (e) {
-      print("❌ Error loading outer eye model: $e");
-      _isOuterLoaded = false;
+      print("❌ Error loading outer model: $e");
     }
   }
 
   // ===================== MAIN ANALYSIS =====================
 
-  Future<EyeAnalysisResult> analyzeEyeImage(String imagePath) async {
+  Future<void> loadModels() async {
     if (!_isFundusLoaded) await _loadFundusModel();
     if (!_isOuterLoaded) await _loadOuterModel();
+  }
 
+  Future<EyeAnalysisResult> analyzeEyeImage(String imagePath) async {
     if (!_isFundusLoaded || !_isOuterLoaded) {
-      throw Exception('One or more ML models not loaded');
+      throw Exception("Models not loaded – call loadModels() first");
     }
 
     try {
       final imageFile = File(imagePath);
-      if (!await imageFile.exists()) {
-        throw Exception('Image file not found: $imagePath');
-      }
+      if (!await imageFile.exists()) throw Exception('Image file not found');
 
       final imageBytes = await imageFile.readAsBytes();
       final image = img.decodeImage(imageBytes);
       if (image == null) throw Exception('Failed to decode image');
 
-      final preprocessed = _preprocessImage(image);
+      final input = _preprocessImage(image).reshape([1, _inputSize, _inputSize, _numChannels]);
 
-      // Fundus prediction
-      final fundusOutput =
-      List.filled(_fundusLabels.length, 0.0).reshape([1, _fundusLabels.length]);
-      _fundusInterpreter!.run(preprocessed, fundusOutput);
-      final fundusPredictions = fundusOutput[0] as List<double>;
-      final fundusResult = _processFundusResults(fundusPredictions);
+      // Run models
+      final fundusOutput = List.filled(_fundusLabels.length, 0.0).reshape([1, _fundusLabels.length]);
+      _fundusInterpreter!.run(input, fundusOutput);
+      final fundusResult = _processFundusResults(fundusOutput[0] as List<double>);
 
-      // Outer eye prediction
-      final outerOutput =
-      List.filled(_outerLabels.length, 0.0).reshape([1, _outerLabels.length]);
-      _outerInterpreter!.run(preprocessed, outerOutput);
+      final outerOutput = List.filled(_outerLabels.length, 0.0).reshape([1, _outerLabels.length]);
+      _outerInterpreter!.run(input, outerOutput);
       final outerPredictions = outerOutput[0] as List<double>;
       final outerIdx = _argmax(outerPredictions);
       final outerCondition = _outerLabels[outerIdx];
       final outerConfidence = outerPredictions[outerIdx];
 
-      // Bundle results
+      // Merge results
       final combinedCondition =
           "Outer: $outerCondition (${(outerConfidence * 100).toStringAsFixed(1)}%) | "
           "Fundus: ${fundusResult.condition} (${(fundusResult.confidence * 100).toStringAsFixed(1)}%)";
 
       return EyeAnalysisResult(
         condition: combinedCondition,
-        confidence: (outerConfidence + fundusResult.confidence) / 2,
+        confidence: (outerConfidence > fundusResult.confidence)
+            ? outerConfidence
+            : fundusResult.confidence,
         riskFactors: [
           ...fundusResult.riskFactors,
-          if (outerCondition != "Normal")
-            "Outer-eye issue detected: $outerCondition"
+          if (outerCondition != "Normal") "Outer-eye issue: $outerCondition"
         ],
         recommendations: [
           ...fundusResult.recommendations,
-          if (outerCondition != "Normal")
-            "Consult an eye specialist for outer-eye condition"
+          if (outerCondition != "Normal") "Consult an eye specialist for $outerCondition"
         ],
       );
     } catch (e) {
-      print('Error analyzing eye image: $e');
+      print('❌ Eye analysis failed: $e');
       return EyeAnalysisResult(
-        condition: 'Healthy',
-        confidence: 0.5,
+        condition: 'Unknown',
+        confidence: 0.0,
         riskFactors: [],
-        recommendations: ['Unable to analyze image. Please retake the photo.'],
+        recommendations: ['Analysis failed, please retake the image'],
       );
     }
   }
+
 
   // ===================== HELPERS =====================
 
@@ -395,7 +392,11 @@ class MLService {
     final riskLevel = _determineRiskLevel(score);
     final diagnosis = _generateDiagnosis(score);
     final recs = _generateVisionRecommendations(score, eyeAnalysis);
-
+    String? aiDiagnosis;
+    if (eyeAnalysis != null) {
+      aiDiagnosis = "Detected: ${eyeAnalysis.condition.replaceAll('_', ' ').toUpperCase()} "
+          "(Confidence: ${(eyeAnalysis.confidence * 100).toInt()}%)";
+    }
     return VisionAnalysisResult(
       visionScore: score,
       riskLevel: riskLevel,
@@ -404,7 +405,7 @@ class MLService {
       confidence: score,
       eyeAnalysis: eyeAnalysis,
       source: eyeAnalysis == null ? "Test" : "Combined",
-      aiDiagnosis: eyeAnalysis?.condition,
+      aiDiagnosis: aiDiagnosis,
     );
   }
 

@@ -151,21 +151,16 @@ class _AmslerGridTestScreenState extends State<AmslerGridTestScreen> {
 
   void _completeGridTest() async {
     _eyeTimer?.cancel();
-    _cameraService.stopCapture(); // Stop the periodic capture
-
-    if (_cameraController != null) {
-
-      _cameraController = null;
-      await _cameraController!.dispose();
-    }
+    CameraService().stopCapture(); // stop periodic images
+    await CameraService().stopCamera(); // release hardware
 
     setState(() {
       _isTestActive = false;
       _testCompleted = true;
       _showQuestionnaire = true;
-      _isCameraInitialized = false;
     });
   }
+
 
 
   void _completeQuestionnaire() {

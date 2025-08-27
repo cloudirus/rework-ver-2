@@ -179,7 +179,7 @@ class _ResultsScreenState extends State<ResultsScreen> {
 
     // Encode and write the zip
     final zipData = ZipEncoder().encode(archive);
-    final zipFile = File(zipPath)..writeAsBytesSync(zipData!);
+    final zipFile = File(zipPath)..writeAsBytesSync(zipData);
 
     print('📦 New ZIP created at $zipPath');
     return zipFile;
@@ -283,26 +283,50 @@ class _ResultsScreenState extends State<ResultsScreen> {
     try {
       final currentSession = _sessionManager.getCurrentSession();
       if (currentSession != null) {
+        print("📌 Current session loaded: ${currentSession.sessionId}");
+
         _testDataService.addCompletedSession(currentSession);
         await SessionStorage.saveSessions([currentSession]);
         await _cameraService.saveAllCapturedImages();
         uploadFolderAndJson();
 
+        final capturedPaths = _cameraService.getCapturedImagePaths();
+        print("📸 Captured paths: $capturedPaths");
+
         final eyeTrackingData = _cameraService.generateEyeTrackingData();
+        print("👁️ Eye tracking data: $eyeTrackingData");
+
+        // 🔹 Phân tích tất cả ảnh
+        await _cameraService.analyzeAllCapturedImages();
+        EyeAnalysisResult? eyeAnalysis = _cameraService.getBestAnalysisResult();
+        print("🎯 Best analysis result (from camera service): $eyeAnalysis");
 
         // 1. Kết quả từ bài test
-        final questionnaireAnswers = currentSession.questionnaireResults;
         final testBasedResult = _createTestBasedAnalysis();
         final int correctAnswers = currentSession.correctAnswers;
         final int totalQuestions = currentSession.totalQuestions;
-        // 2. Gọi AI service
+        print("📝 Test based result: $testBasedResult");
+
+        // 2. Gọi AI service (fallback nếu bestResult null)
+        if (eyeAnalysis == null && capturedPaths.isNotEmpty) {
+          try {
+            final latestImagePath = capturedPaths.last;
+            print("🔄 Fallback analyzing last image: $latestImagePath");
+
+            eyeAnalysis = await _mlService.analyzeEyeImage(latestImagePath);
+            print("✅ Eye Analysis (fallback): ${eyeAnalysis?.condition}");
+          } catch (e) {
+            print("❌ Eye Analysis failed: $e");
+          }
+        }
+
         VisionAnalysisResult? mlResult;
         try {
           mlResult = await _mlService.analyzeVisionTest(
             correctAnswers,
             totalQuestions,
             eyeTrackingData,
-            eyeAnalysis: null,
+            eyeAnalysis: eyeAnalysis,
           );
           print("✅ ML Analysis: ${mlResult.diagnosis}");
         } catch (e) {
@@ -314,9 +338,9 @@ class _ResultsScreenState extends State<ResultsScreen> {
         if (mlResult != null) {
           finalResult = testBasedResult.copyWith(
             diagnosis: testBasedResult.diagnosis,
-            aiDiagnosis: mlResult.diagnosis,
+            aiDiagnosis: mlResult.aiDiagnosis,
             confidence: mlResult.confidence,
-            eyeAnalysis: mlResult.eyeAnalysis,
+            eyeAnalysis: mlResult.eyeAnalysis ?? eyeAnalysis,
             source: "Combined",
           );
         } else {
@@ -329,9 +353,12 @@ class _ResultsScreenState extends State<ResultsScreen> {
             _isAnalyzing = false;
           });
         }
+
+        print("🎉 Final Result: $_analysisResult");
       }
-    } catch (e) {
+    } catch (e, s) {
       print("Error analyzing results: $e");
+      print(s); // 🔎 in luôn stack trace
       if (mounted) {
         setState(() {
           _isAnalyzing = false;
@@ -339,6 +366,7 @@ class _ResultsScreenState extends State<ResultsScreen> {
       }
     }
   }
+
 
 
   double _weightBasedOnQuestionnare(
@@ -539,18 +567,27 @@ class _ResultsScreenState extends State<ResultsScreen> {
           const SizedBox(height: 16),
           _buildRecommendationsCard(result),
 
-          if (result.aiDiagnosis != null) ...[
-            const SizedBox(height: 24),
-            _buildDiagnosisCard(
-              title: "Phân tích AI",
-              diagnosis: result.aiDiagnosis!,
-              color: Colors.blue,
-            ),
-            if (result.eyeAnalysis != null) ...[
-              const SizedBox(height: 16),
-              _buildAIAnalysisCard(result.eyeAnalysis!),
-            ],
-          ],
+          // Always show AI Diagnosis
+          const SizedBox(height: 24),
+          _buildDiagnosisCard(
+            title: "Phân tích AI",
+            diagnosis: result.aiDiagnosis ?? "Không có dữ liệu",
+            color: Colors.blue,
+          ),
+
+// Always show AI Eye Analysis
+          const SizedBox(height: 16),
+          _buildAIAnalysisCard(
+            result.eyeAnalysis ??
+                EyeAnalysisResult(
+                  condition: "Không có dữ liệu",
+                  confidence: 0.0,
+                  riskFactors: [],
+                  recommendations: [],
+                ),
+          ),
+
+
 
           // ✅ thêm chỗ này
           const SizedBox(height: 24),
@@ -713,9 +750,41 @@ class _ResultsScreenState extends State<ResultsScreen> {
 
 
   Widget _buildAIAnalysisCard(EyeAnalysisResult eyeAnalysis) {
-    Color conditionColor = eyeAnalysis.condition == 'normal'
-        ? Colors.green
-        : Colors.orange;
+    if (eyeAnalysis.condition == "Không có dữ liệu") {
+      return Card(
+        elevation: 4,
+        child: Padding(
+          padding: const EdgeInsets.all(16),
+          child: Column(
+            crossAxisAlignment: CrossAxisAlignment.start,
+            children: const [
+              Row(
+                children: [
+                  Icon(Icons.smart_toy, color: Colors.grey, size: 20),
+                  SizedBox(width: 8),
+                  Text(
+                    'AI Eye Analysis',
+                    style: TextStyle(
+                      fontSize: 18,
+                      fontWeight: FontWeight.bold,
+                    ),
+                  ),
+                ],
+              ),
+              SizedBox(height: 16),
+              Text(
+                "Chưa có dữ liệu phân tích mắt từ AI",
+                style: TextStyle(color: Colors.grey, fontSize: 14),
+              ),
+            ],
+          ),
+        ),
+      );
+    }
+
+    // 👉 fallback to your current "normal / abnormal" display
+    Color conditionColor =
+    eyeAnalysis.condition == 'normal' ? Colors.green : Colors.orange;
 
     return Card(
       elevation: 4,
@@ -726,11 +795,7 @@ class _ResultsScreenState extends State<ResultsScreen> {
           children: [
             Row(
               children: [
-                Icon(
-                  Icons.smart_toy,
-                  color: Colors.blue.shade600,
-                  size: 20,
-                ),
+                Icon(Icons.smart_toy, color: Colors.blue.shade600, size: 20),
                 const SizedBox(width: 8),
                 const Text(
                   'AI Eye Analysis',
@@ -795,17 +860,12 @@ class _ResultsScreenState extends State<ResultsScreen> {
                 child: Row(
                   crossAxisAlignment: CrossAxisAlignment.start,
                   children: [
-                    Icon(
-                      Icons.fiber_manual_record,
-                      size: 8,
-                      color: Colors.grey.shade600,
-                    ),
+                    Icon(Icons.fiber_manual_record,
+                        size: 8, color: Colors.grey.shade600),
                     const SizedBox(width: 8),
                     Expanded(
-                      child: Text(
-                        factor,
-                        style: const TextStyle(fontSize: 13),
-                      ),
+                      child: Text(factor,
+                          style: const TextStyle(fontSize: 13)),
                     ),
                   ],
                 ),
@@ -816,6 +876,7 @@ class _ResultsScreenState extends State<ResultsScreen> {
       ),
     );
   }
+
 
   Widget _buildRecommendationsCard(VisionAnalysisResult result) {
     return Card(
@@ -924,7 +985,7 @@ class _ResultsScreenState extends State<ResultsScreen> {
               _sessionManager.clearSession();
               // Cleanup captured images and analysis data
               _cameraService.cleanup();
-              _fileCleanup();
+              //_fileCleanup();
               // Navigate back to home screen
               Navigator.of(context).popUntil((route) => route.isFirst);
             },
