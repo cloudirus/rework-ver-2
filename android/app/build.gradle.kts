@@ -14,9 +14,12 @@ android {
     ndkVersion = "27.0.12077973"
 
     compileOptions {
+        // ✅ Use Java 11 (matches your current setup)
         sourceCompatibility = JavaVersion.VERSION_11
         targetCompatibility = JavaVersion.VERSION_11
-        isCoreLibraryDesugaringEnabled = true  // 👈 Bật desugaring
+
+        // ✅ Enable desugaring
+        isCoreLibraryDesugaringEnabled = true
     }
 
     kotlinOptions {
@@ -26,7 +29,7 @@ android {
     defaultConfig {
         applicationId = "com.desertstorm.desertstorm"
 
-        // 👇 minSdk >= 24 (Flutter yêu cầu)
+        // 👇 Flutter requires minSdk >= 24
         minSdk = 24
         targetSdk = 36
 
@@ -53,8 +56,11 @@ flutter {
 }
 
 dependencies {
+    // TensorFlow Lite GPU
     implementation("org.tensorflow:tensorflow-lite-gpu-api:+")
-    coreLibraryDesugaring("com.android.tools:desugar_jdk_libs:2.0.4") // 👈 thêm dòng này
+
+    // ✅ Updated desugaring libs required by flutter_local_notifications
+    coreLibraryDesugaring("com.android.tools:desugar_jdk_libs:2.1.4")
 }
 
 apply(plugin = "com.google.gms.google-services")

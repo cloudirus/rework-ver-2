@@ -1,8 +1,78 @@
+import 'dart:convert';
+import 'dart:io';
 import 'package:flutter/material.dart';
-import '../models/test_result.dart';
-import '../widgets/app_header.dart';
-import '../services/test_data_service.dart';
-// import '../models/json_upload.dart';
+import 'package:path_provider/path_provider.dart';
+
+class AnalysisResultLog {
+  final DateTime timestamp;
+  final int durations;
+  final double visionScore;
+  final String riskLevel;
+  final String diagnosis;
+  final List<String> recommendations;
+
+  AnalysisResultLog({
+    required this.timestamp,
+    required this.durations,
+    required this.visionScore,
+    required this.riskLevel,
+    required this.diagnosis,
+    required this.recommendations,
+  });
+
+  factory AnalysisResultLog.fromJson(Map<String, dynamic> json) {
+    return AnalysisResultLog(
+      timestamp: DateTime.parse(json['timestamp']),
+      durations: (json['durations'] as num?)?.toInt() ?? 0,
+      visionScore: (json['visionScore'] as num?)?.toDouble() ?? 0.0,
+      riskLevel: json['riskLevel'] ?? "Unknown",
+      diagnosis: json['diagnosis'] ?? "No diagnosis",
+      recommendations: json['recommendations'] is List
+          ? List<String>.from(json['recommendations'])
+          : [],
+    );
+  }
+}
+
+class AnalysisResultStorage {
+  static Future<Directory> _getHistoryDir() async {
+    final dir = await getApplicationDocumentsDirectory();
+    final historyDir = Directory("${dir.path}/run_history");
+    if (!await historyDir.exists()) {
+      await historyDir.create(recursive: true);
+    }
+    return historyDir;
+  }
+
+  static Future<List<AnalysisResultLog>> loadAllRuns() async {
+    final dir = await _getHistoryDir();
+    final files = dir.listSync().whereType<File>().toList();
+
+    List<AnalysisResultLog> results = [];
+    for (var file in files) {
+      try {
+        final content = await file.readAsString();
+        final data = jsonDecode(content);
+        results.add(AnalysisResultLog.fromJson(data));
+        print("File $file loaded!");
+      } catch (e, stack) {
+        print("ERROR: File $file cannot load → $e");
+        print(stack);
+      }
+    }
+
+    results.sort((a, b) => b.timestamp.compareTo(a.timestamp));
+    return results;
+  }
+
+  static Future<void> clearAllRuns() async {
+    final dir = await _getHistoryDir();
+    if (await dir.exists()) {
+      await dir.delete(recursive: true);
+      await dir.create(); // recreate empty folder
+    }
+  }
+}
 
 class HistoryScreen extends StatefulWidget {
   const HistoryScreen({super.key});
@@ -11,331 +81,222 @@ class HistoryScreen extends StatefulWidget {
   State<HistoryScreen> createState() => _HistoryScreenState();
 }
 
-class _HistoryScreenState extends State<HistoryScreen> with WidgetsBindingObserver {
-  List<VisionTestSession> _testSessions = [];
-  final TestDataService _testDataService = TestDataService();
-
-  // Future<void> _save(path) async {
-  //   final SessionUploader jsonUploadService = SessionUploader();
-  //   jsonUploadService.uploadFile(path);
-  // }
+class _HistoryScreenState extends State<HistoryScreen> {
+  List<AnalysisResultLog> _history = [];
 
   @override
   void initState() {
     super.initState();
-    WidgetsBinding.instance.addObserver(this);
-    _loadTestHistory();
+    _loadHistory();
   }
 
-  @override
-  void dispose() {
-    WidgetsBinding.instance.removeObserver(this);
-    super.dispose();
-  }
-
-  @override
-  void didChangeAppLifecycleState(AppLifecycleState state) {
-    if (state == AppLifecycleState.resumed) {
-      _loadTestHistory();
-    }
-  }
-
-  void _loadTestHistory() {
+  Future<void> _loadHistory() async {
+    final runs = await AnalysisResultStorage.loadAllRuns();
     setState(() {
-      _testSessions = _testDataService.getTestHistory();
+      _history = runs;
     });
+  }
+
+  String _formatDate(DateTime dt) {
+    return "${dt.day}/${dt.month}/${dt.year} ${dt.hour}:${dt.minute.toString().padLeft(2, '0')}";
+  }
+
+  Future<void> _clearHistory() async {
+    await AnalysisResultStorage.clearAllRuns();
+    setState(() {
+      _history.clear();
+    });
+  }
+
+  void _confirmClearHistory() {
+    showDialog(
+      context: context,
+      builder: (context) => AlertDialog(
+        title: const Text("Xác nhận"),
+        content: const Text(
+            "Bạn có muốn xóa lịch sử? Lịch sử đã xóa không thể khôi phục!"),
+        actions: [
+          TextButton(
+            onPressed: () => Navigator.of(context).pop(),
+            child: const Text("Hủy"),
+          ),
+          TextButton(
+            onPressed: () async {
+              await _clearHistory();
+              Navigator.of(context).pop();
+
+              ScaffoldMessenger.of(context).showSnackBar(
+                const SnackBar(content: Text("Đã xóa thành công")),
+              );
+            },
+            child: const Text(
+              "Xóa",
+              style: TextStyle(color: Colors.red),
+            ),
+          ),
+        ],
+      ),
+    );
   }
 
   @override
   Widget build(BuildContext context) {
+    final total = _history.length;
+    final avgScore = total > 0
+        ? _history.map((e) => e.visionScore).reduce((a, b) => a + b) / total
+        : 0.0;
+    final lowRisk = _history.where((e) => e.riskLevel == "Low").length;
+
     return Scaffold(
-      appBar: AppHeader(
-        title: 'Lịch sử Kiểm tra',
+      appBar: AppBar(
+        backgroundColor: Colors.blue,
+        elevation: 10,
+        shape: const RoundedRectangleBorder(
+          borderRadius: BorderRadius.vertical(
+            bottom: Radius.circular(1),
+          ),
+        ),
+        leading: IconButton(
+          icon: const Icon(Icons.arrow_back, color: Colors.white),
+          onPressed: () => Navigator.pop(context),
+        ),
+        title: Row(
+          children: const [
+            Icon(Icons.remove_red_eye, color: Colors.white),
+            SizedBox(width: 8),
+            Text("Lịch sử Kiểm tra", style: TextStyle(color: Colors.white)),
+          ],
+        ),
         actions: [
           IconButton(
-            icon: const Icon(Icons.filter_list),
-            onPressed: () => _showFilterDialog(),
-          ),
+            icon: const Icon(Icons.filter_alt, color: Colors.white),
+            onPressed: () {
+              // filter/sort feature can be added later
+            },
+          )
         ],
       ),
       body: Column(
         children: [
-          _buildStatsHeader(),
+          // === Blue Stats Bar ===
+          Container(
+            color: Colors.blue,
+            padding: const EdgeInsets.symmetric(vertical: 16, horizontal: 12),
+            child: Row(
+              mainAxisAlignment: MainAxisAlignment.spaceAround,
+              children: [
+                _buildStat("Tổng số Kiểm tra", "$total"),
+                _buildStat("Điểm TB", "${(avgScore * 100).toStringAsFixed(0)}%"),
+                _buildStat("Rủi ro Thấp", "$lowRisk/$total"),
+              ],
+            ),
+          ),
+
+          // === History List ===
           Expanded(
-            child: _testSessions.isEmpty
-                ? _buildEmptyState()
+            child: _history.isEmpty
+                ? Center(
+              child: Column(
+                mainAxisSize: MainAxisSize.min,
+                children: const [
+                  Icon(Icons.history, size: 64, color: Colors.grey),
+                  SizedBox(height: 12),
+                  Text("Không có lịch sử kiểm tra",
+                      style: TextStyle(fontSize: 16, color: Colors.grey)),
+                  SizedBox(height: 8),
+                  Text(
+                      "Hoàn thành kiểm tra thị lực đầu tiên để xem kết quả tại đây",
+                      textAlign: TextAlign.center,
+                      style:
+                      TextStyle(fontSize: 14, color: Colors.grey)),
+                ],
+              ),
+            )
                 : ListView.builder(
-                    padding: const EdgeInsets.all(16),
-                    itemCount: _testSessions.length,
-                    itemBuilder: (context, index) {
-                      final session = _testSessions[index];
-                      return _buildTestSessionCard(session);
+              itemCount: _history.length,
+              itemBuilder: (context, index) {
+                final run = _history[index];
+                return Card(
+                  margin: const EdgeInsets.all(8),
+                  child: ListTile(
+                    leading:
+                    const Icon(Icons.visibility, color: Colors.blue),
+                    title: Text("Run: ${_formatDate(run.timestamp)}"),
+                    subtitle: Text(
+                      "Điểm: ${(run.visionScore * 100).toStringAsFixed(1)}% | Rủi ro: ${run.riskLevel}",
+                    ),
+                    onTap: () {
+                      showDialog(
+                        context: context,
+                        builder: (_) => AlertDialog(
+                          title: const Text("Chi tiết"),
+                          content: Column(
+                            mainAxisSize: MainAxisSize.min,
+                            crossAxisAlignment: CrossAxisAlignment.start,
+                            children: [
+                              Text("Ngày: ${_formatDate(run.timestamp)}"),
+                              Text(
+                                  "Điểm: ${(run.visionScore * 100).toStringAsFixed(1)}%"),
+                              Text("Rủi ro: ${run.riskLevel}"),
+                              Text("Chẩn đoán: ${run.diagnosis}"),
+                            ],
+                          ),
+                          actions: [
+                            TextButton(
+                              onPressed: () => Navigator.pop(context),
+                              child: const Text("Đóng"),
+                            )
+                          ],
+                        ),
+                      );
                     },
                   ),
+                );
+              },
+            ),
           ),
+
+          // === Footer Clear Button ===
+          if (_history.isNotEmpty)
+            Padding(
+              padding: const EdgeInsets.all(16.0),
+              child: Center(
+                child: ElevatedButton(
+                  onPressed: _confirmClearHistory,
+                  style: ElevatedButton.styleFrom(
+                    backgroundColor: Colors.white,
+                    foregroundColor: Colors.red,
+                    shape: RoundedRectangleBorder(
+                      borderRadius: BorderRadius.circular(20),
+                    ),
+                    padding:
+                    const EdgeInsets.symmetric(horizontal: 40, vertical: 14),
+                    elevation: 3,
+                  ),
+                  child: const Text(
+                    "Xóa lịch sử",
+                    style: TextStyle(fontSize: 16, fontWeight: FontWeight.bold),
+                  ),
+                ),
+              ),
+            ),
         ],
       ),
     );
   }
 
-  Widget _buildStatsHeader() {
-    final stats = _testDataService.getTestStatistics();
-    final totalTests = stats['totalTests'] as int;
-    final averageScore = stats['averageScore'] as double;
-    final lowRiskCount = stats['lowRiskCount'] as int;
-
-    return Container(
-      padding: const EdgeInsets.all(16),
-      decoration: BoxDecoration(
-        gradient: LinearGradient(
-          colors: [Colors.blue.shade500, Colors.blue.shade700],
-          begin: Alignment.topLeft,
-          end: Alignment.bottomRight,
-        ),
-      ),
-      child: Row(
-        mainAxisAlignment: MainAxisAlignment.spaceEvenly,
-        children: [
-          _buildStatItem('Tổng số Kiểm tra', totalTests.toString()),
-          _buildStatItem('Điểm TB', totalTests > 0 ? '${(averageScore * 100).toInt()}%' : '0%'),
-          _buildStatItem('Rủi ro Thấp', '$lowRiskCount/$totalTests'),
-        ],
-      ),
-    );
-  }
-
-  Widget _buildStatItem(String label, String value) {
+  Widget _buildStat(String label, String value) {
     return Column(
       children: [
-        Text(
-          value,
-          style: const TextStyle(
-            fontSize: 24,
-            fontWeight: FontWeight.bold,
-            color: Colors.white,
-          ),
-        ),
+        Text(value,
+            style: const TextStyle(
+              color: Colors.white,
+              fontSize: 20,
+              fontWeight: FontWeight.bold,
+            )),
         const SizedBox(height: 4),
-        Text(
-          label,
-          style: const TextStyle(
-            fontSize: 12,
-            color: Colors.white70,
-          ),
-        ),
+        Text(label, style: const TextStyle(color: Colors.white, fontSize: 14)),
       ],
     );
   }
-
-  Widget _buildEmptyState() {
-    return const Center(
-      child: Column(
-        mainAxisAlignment: MainAxisAlignment.center,
-        children: [
-          Icon(
-            Icons.history,
-            size: 80,
-            color: Colors.grey,
-          ),
-          SizedBox(height: 16),
-          Text(
-            'Không có lịch sử kiểm tra',
-            style: TextStyle(
-              fontSize: 18,
-              color: Colors.grey,
-            ),
-          ),
-          SizedBox(height: 8),
-          Text(
-            'Hoàn thành kiểm tra thị lực đầu tiên để xem kết quả tại đây',
-            style: TextStyle(
-              fontSize: 14,
-              color: Colors.grey,
-            ),
-          ),
-        ],
-      ),
-    );
-  }
-
-  Widget _buildTestSessionCard(VisionTestSession session) {
-    final riskLevel = _testDataService.getRiskLevel(session.visionScore ?? 0.0);
-    Color riskColor = riskLevel == 'Low'
-        ? Colors.green
-        : riskLevel == 'Medium'
-            ? Colors.orange
-            : Colors.red;
-
-    return Card(
-      elevation: 4,
-      margin: const EdgeInsets.only(bottom: 16),
-      child: InkWell(
-        onTap: () => _viewTestDetails(session),
-        borderRadius: BorderRadius.circular(12),
-        child: Padding(
-          padding: const EdgeInsets.all(16),
-          child: Column(
-            crossAxisAlignment: CrossAxisAlignment.start,
-            children: [
-              Row(
-                mainAxisAlignment: MainAxisAlignment.spaceBetween,
-                children: [
-                  Expanded(
-                    child: Text(
-                      session.testType,
-                      style: const TextStyle(
-                        fontSize: 16,
-                        fontWeight: FontWeight.bold,
-                      ),
-                    ),
-                  ),
-                  Container(
-                    padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 4),
-                    decoration: BoxDecoration(
-                      color: riskColor.withOpacity(0.1),
-                      borderRadius: BorderRadius.circular(12),
-                      border: Border.all(color: riskColor.withOpacity(0.3)),
-                    ),
-                    child: Text(
-                      riskLevel,
-                      style: TextStyle(
-                        color: riskColor,
-                        fontSize: 12,
-                        fontWeight: FontWeight.w600,
-                      ),
-                    ),
-                  ),
-                ],
-              ),
-              const SizedBox(height: 8),
-              Text(
-                _formatDate(session.startTime),
-                style: const TextStyle(
-                  fontSize: 14,
-                  color: Colors.grey,
-                ),
-              ),
-              const SizedBox(height: 12),
-              Row(
-                mainAxisAlignment: MainAxisAlignment.spaceBetween,
-                children: [
-                  Row(
-                    children: [
-                      const Icon(Icons.score, size: 16, color: Colors.blue),
-                      const SizedBox(width: 4),
-                      Text(
-                        'Điểm: ${((session.visionScore ?? 0.0) * 100).toInt()}%',
-                        style: const TextStyle(
-                          fontSize: 14,
-                          fontWeight: FontWeight.w600,
-                        ),
-                      ),
-                    ],
-                  ),
-                  Row(
-                    children: [
-                      const Icon(Icons.timer, size: 16, color: Colors.grey),
-                      const SizedBox(width: 4),
-                      Text(
-                        '${session.endTime != null ? session.endTime!.difference(session.startTime).inMinutes : 0}ph',
-                        style: const TextStyle(
-                          fontSize: 14,
-                          color: Colors.grey,
-                        ),
-                      ),
-                    ],
-                  ),
-                ],
-              ),
-            ],
-          ),
-        ),
-      ),
-    );
-  }
-
-  void _viewTestDetails(VisionTestSession session) {
-    final riskLevel = _testDataService.getRiskLevel(session.visionScore ?? 0.0);
-    showDialog(
-      context: context,
-      builder: (context) => AlertDialog(
-        title: Text(session.testType),
-        content: Column(
-          mainAxisSize: MainAxisSize.min,
-          crossAxisAlignment: CrossAxisAlignment.start,
-          children: [
-            Text('Ngày: ${_formatDate(session.startTime)}'),
-            const SizedBox(height: 8),
-            Text('Điểm: ${((session.visionScore ?? 0.0) * 100).toInt()}%'),
-            const SizedBox(height: 8),
-            Text('Mức độ Rủi ro: $riskLevel'),
-            const SizedBox(height: 8),
-            Text('Thời gian: ${session.endTime != null ? session.endTime!.difference(session.startTime).inMinutes : 0}ph'),
-            const SizedBox(height: 8),
-            Text('Kiểm tra Hoàn thành: ${session.testResults.length}'),
-          ],
-        ),
-        actions: [
-          TextButton(
-            onPressed: () => Navigator.of(context).pop(),
-            child: const Text('Đóng'),
-          ),
-          TextButton(
-            onPressed: () {
-              // _save();
-              Navigator.of(context).pop();
-              ScaffoldMessenger.of(context).showSnackBar(
-                const SnackBar(content: Text('Chi tiết kiểm tra đã xuất')),
-              );
-            },
-            child: const Text('Xuất'),
-          ),
-        ],
-      ),
-    );
-  }
-
-  void _showFilterDialog() {
-    showDialog(
-      context: context,
-      builder: (context) => AlertDialog(
-        title: const Text('Lọc Kiểm tra'),
-        content: Column(
-          mainAxisSize: MainAxisSize.min,
-          children: [
-            CheckboxListTile(
-              title: const Text('Kiểm tra Thị lực Toàn diện'),
-              value: true,
-              onChanged: (value) {},
-            ),
-            CheckboxListTile(
-              title: const Text('Kiểm tra Snellen'),
-              value: true,
-              onChanged: (value) {},
-            ),
-            CheckboxListTile(
-              title: const Text('Kiểm tra Lưới Amsler'),
-              value: true,
-              onChanged: (value) {},
-            ),
-          ],
-        ),
-        actions: [
-          TextButton(
-            onPressed: () => Navigator.of(context).pop(),
-            child: const Text('Hủy'),
-          ),
-          TextButton(
-            onPressed: () => Navigator.of(context).pop(),
-            child: const Text('Áp dụng'),
-          ),
-        ],
-      ),
-    );
-  }
-
-  String _formatDate(DateTime date) {
-    return '${date.day}/${date.month}/${date.year} at ${date.hour}:${date.minute.toString().padLeft(2, '0')}';
-  }
 }
-

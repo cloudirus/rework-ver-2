@@ -8,8 +8,78 @@ import 'dart:io';
 import 'package:path_provider/path_provider.dart';
 import 'package:http/http.dart' as http;
 import 'package:archive/archive_io.dart';
+import 'package:archive/archive.dart';
 import 'package:path/path.dart' as path;
 import 'package:http_parser/http_parser.dart';
+import 'dart:convert';
+import 'package:flutter/services.dart' show rootBundle;
+
+class AnalysisResultLog {
+  final DateTime timestamp;
+  final int durations;
+  final double visionScore;
+  final String riskLevel;
+  final String diagnosis;
+  final List<String> recommendations;
+
+  AnalysisResultLog({
+    required this.timestamp,
+    required this.durations,
+    required this.visionScore,
+    required this.riskLevel,
+    required this.diagnosis,
+    required this.recommendations,
+  });
+
+  factory AnalysisResultLog.fromJson(Map<String, dynamic> json) {
+    return AnalysisResultLog(
+      timestamp: DateTime.parse(json['timestamp']),
+      durations: (json['durations'] as num?)?.toInt() ?? 0,
+      visionScore: (json['visionScore'] as num?)?.toDouble() ?? 0.0,
+      riskLevel: json['riskLevel'] ?? "Unknown",
+      diagnosis: json['diagnosis'] ?? "No diagnosis",
+      recommendations: json['recommendations'] is List
+          ? List<String>.from(json['recommendations'])
+          : [],
+    );
+  }
+}
+
+class AnalysisResultStorage {
+  static Future<Directory> _getHistoryDir() async {
+    final dir = await getApplicationDocumentsDirectory();
+    final historyDir = Directory("${dir.path}/run_history");
+    if (!await historyDir.exists()) {
+      await historyDir.create(recursive: true);
+    }
+    return historyDir;
+  }
+
+  static Future<AnalysisResultLog?> loadLatestRun() async {
+    final dir = await _getHistoryDir();
+    final files = dir
+        .listSync()
+        .whereType<File>()
+        .toList();
+
+    if (files.isEmpty) return null;
+
+    // Find the newest file by last modified date
+    files.sort((a, b) => b.lastModifiedSync().compareTo(a.lastModifiedSync()));
+    final newestFile = files.first;
+
+    try {
+      final content = await newestFile.readAsString();
+      final data = jsonDecode(content);
+      print("Newest file ${newestFile.path} loaded!");
+      return AnalysisResultLog.fromJson(data);
+    } catch (e, stack) {
+      print("ERROR: File ${newestFile.path} cannot load → $e");
+      print(stack);
+      return null;
+    }
+  }
+}
 
 class ResultsScreen extends StatefulWidget {
   final String testType;
@@ -35,44 +105,22 @@ class _ResultsScreenState extends State<ResultsScreen> {
   final SessionStorage _sessionStorage = SessionStorage();
   final TestDataService _testDataService = TestDataService();
   final CameraService _cameraService = CameraService();
+  List<dynamic> _questions = [];
 
   @override
   void initState(){
     super.initState();
-    // final stats = TestDataService().getTestStatistics();
-    // final jsonString = const JsonEncoder.withIndent('  ').convert(stats);
-    // final file = File('test_statistics.json');
-    // file.writeAsString(jsonString);
-    //
-    // print('✅ Statistics saved at: ${file.path}');
-    // saveStatistics(stats);
-    // final loaded = loadStatistics();
-    // print("✅ Loaded: $loaded");
+    _loadQuestions();
     _analyzeResults();
   }
 
-  // Future<File> _getLocalFile() async {
-  //   // Get the app's document directory (safe & persistent)
-  //   final directory = await getApplicationDocumentsDirectory();
-  //   return File('${directory.path}/test_statistics.json');
-  // }
-  // Future<void> saveStatistics(Map<String, dynamic> stats) async {
-  //   final file = await _getLocalFile();
-  //   final jsonString = jsonEncode(stats);
-  //   await file.writeAsString(jsonString);
-  //   print("📂 Saved stats at: ${file.path}");
-  // }
+  Future<void> _loadQuestions() async {
+    final String data = await rootBundle.loadString('assets/questions.json');
+    setState(() {
+      _questions = json.decode(data)['questions'];
+    });
+  }
 
-  // Future<Map<String, dynamic>> loadStatistics() async {
-  //   final file = await _getLocalFile();
-  //
-  //   if (await file.exists()) {
-  //     final contents = await file.readAsString();
-  //     return jsonDecode(contents);
-  //   } else {
-  //     return {}; // return empty if file doesn’t exist
-  //   }
-  // }
   String _formattedTimestamp() {
     final now = DateTime.now();
     final dd = now.day.toString().padLeft(2, '0');
@@ -83,35 +131,49 @@ class _ResultsScreenState extends State<ResultsScreen> {
     final ss = now.second.toString().padLeft(2, '0');
     return "$dd$mm$yyyy-$hh$min$ss";
   }
+
   Future<File> zipEyeCapturesFolder() async {
     final appDir = await getApplicationDocumentsDirectory();
-    final saveDir = Directory('${appDir.path}/eye_frames');
+    final saveDir = Directory(path.join(appDir.path, 'eye_frames'));
 
     final timestamp = _formattedTimestamp();
     final zipPath = path.join(appDir.path, '${timestamp}_eye_frames.zip');
 
-    // ✅ Delete old ZIP if exists
+    // 🗑️ Delete old zip if exists
     final oldZip = File(zipPath);
     if (await oldZip.exists()) {
       await oldZip.delete();
       print('🗑️ Old ZIP deleted at $zipPath');
     }
 
-    final encoder = ZipFileEncoder();
-    encoder.create(zipPath);
+    final archive = Archive();
 
-    // ✅ Add all files in eye_frames folder
     if (await saveDir.exists()) {
-      saveDir.listSync().whereType<File>().forEach((file) {
-        encoder.addFile(file);
-      });
+      print("📂 eye_frames folder exists: ${saveDir.path}");
+
+      await for (final entity in saveDir.list(recursive: true, followLinks: false)) {
+        if (entity is File) {
+          final bytes = await entity.readAsBytes();
+
+          // Keep relative path inside the zip
+          final relativePath = path.relative(entity.path, from: saveDir.path);
+
+          archive.addFile(ArchiveFile(relativePath, bytes.length, bytes));
+          print("➕ Added to archive: $relativePath");
+        }
+      }
+    } else {
+      print("⚠️ eye_frames folder does NOT exist!");
     }
 
-    encoder.close();
-    print('📦 New ZIP created at $zipPath');
+    // Encode and write the zip
+    final zipData = ZipEncoder().encode(archive);
+    final zipFile = File(zipPath)..writeAsBytesSync(zipData!);
 
-    return File(zipPath);
+    print('📦 New ZIP created at $zipPath');
+    return zipFile;
   }
+
 
   Future<void> uploadFolderAndJson() async {
     final appDir = await getApplicationDocumentsDirectory();
@@ -148,30 +210,61 @@ class _ResultsScreenState extends State<ResultsScreen> {
 
     if (response.statusCode == 200) {
       print("✅ Upload successful");
-      _fileCleanup();
     } else {
       print("❌ Upload failed: ${response.statusCode}");
     }
   }
 
-  Future<void> _fileCleanup() async{
+  Future<void> _fileCleanup() async {
+    print("File cleanup initialized");
     final appDir = await getApplicationDocumentsDirectory();
-    final jsonFile = File(path.join(appDir.path, 'sessions.json'));
-    final zipFile = File(path.join(appDir.path, 'eye_frames.zip'));
     final eyeCapture = Directory(path.join(appDir.path, 'eye_captures'));
     final eyeFrames = Directory(path.join(appDir.path, 'eye_frames'));
 
-    if(await jsonFile.exists() && await zipFile.exists() && await eyeCapture.exists() && await eyeFrames.exists()) {
-      try{
+    try {
+      // Find all zip files that contain "eye_frames" in their filename
+      final dirFiles = appDir.listSync().whereType<File>().toList();
+      final zipFiles = dirFiles.where((f) =>
+      f.path.endsWith(".zip") &&
+          path.basename(f.path).contains("eye_frames"));
+
+      // Find all json files that contain "sessions" in their filename
+      final sessionJsonFiles = dirFiles.where((f) =>
+      f.path.endsWith(".json") &&
+          path.basename(f.path).contains("sessions"));
+
+      // Delete directories
+      if (await eyeCapture.exists()) {
         await eyeCapture.delete(recursive: true);
+        print("eye_captures deleted");
+      }
+      if (await eyeFrames.exists()) {
         await eyeFrames.delete(recursive: true);
-        await jsonFile.delete();
-        await zipFile.delete();
+        print("eye_frames deleted");
+      }
+
+      // Delete matching JSON files
+      for (final jf in sessionJsonFiles) {
+        await jf.delete();
+        print("Deleted JSON: ${path.basename(jf.path)}");
+      }
+
+      // Delete matching ZIP files
+      for (final zf in zipFiles) {
+        await zf.delete();
+        print("Deleted ZIP: ${path.basename(zf.path)}");
+      }
+
+      if (zipFiles.isEmpty &&
+          sessionJsonFiles.isEmpty &&
+          !await eyeCapture.exists() &&
+          !await eyeFrames.exists()) {
+        print("No file found / File already deleted");
+      } else {
         print("Raw data deleted");
       }
-      catch(e){
-        print("ERROR: Cannot delete raw data");
-      }
+    } catch (e) {
+      print("ERROR: Cannot delete raw data → $e");
     }
   }
 
@@ -187,7 +280,8 @@ class _ResultsScreenState extends State<ResultsScreen> {
         final eyeTrackingData = _cameraService.generateEyeTrackingData();
 
         // 1. Kết quả từ bài test
-        final testBasedResult = _createTestBasedAnalysis();
+        final questionnaireAnswers = currentSession.questionnaireResults;
+        final testBasedResult = await _createTestBasedAnalysis();
 
         // 2. Gọi AI service
         VisionAnalysisResult? mlResult;
@@ -233,11 +327,20 @@ class _ResultsScreenState extends State<ResultsScreen> {
     }
   }
 
-
-  VisionAnalysisResult _createTestBasedAnalysis() {
-    final correctAnswers = widget.testResults.where((r) => r.isCorrect).length;
-    final totalQuestions = widget.testResults.length;
-    final accuracy = totalQuestions > 0 ? correctAnswers / totalQuestions : 0.0;
+  Future<VisionAnalysisResult> _createTestBasedAnalysis() async {
+    final currentSession = _sessionManager.getCurrentSession();
+    if (currentSession == null || _questions.isEmpty) {
+      return VisionAnalysisResult(
+        visionScore: 0,
+        riskLevel: "Unknown",
+        diagnosis: "Không đủ dữ liệu để phân tích",
+        recommendations: ["Thử lại bài kiểm tra"],
+        confidence: 0.0,
+        eyeAnalysis: null,
+      );
+    }
+    final run = await AnalysisResultStorage.loadLatestRun();
+    final accuracy = run!.visionScore;
 
     // Determine risk level based on test performance only
     String riskLevel;
@@ -273,6 +376,7 @@ class _ResultsScreenState extends State<ResultsScreen> {
       ];
     }
 
+
     return VisionAnalysisResult(
       visionScore: accuracy,
       riskLevel: riskLevel,
@@ -282,6 +386,7 @@ class _ResultsScreenState extends State<ResultsScreen> {
       eyeAnalysis: null, // Don't include AI analysis in results
     );
   }
+
 
   @override
   Widget build(BuildContext context) {
@@ -721,6 +826,8 @@ class _ResultsScreenState extends State<ResultsScreen> {
               _sessionManager.clearSession();
               // Cleanup captured images and analysis data
               _cameraService.cleanup();
+              _testDataService.getTestStatistics();
+              _fileCleanup();
               // Navigate back to home screen
               Navigator.of(context).popUntil((route) => route.isFirst);
             },
