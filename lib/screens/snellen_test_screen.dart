@@ -26,6 +26,7 @@ class _SnellenTestScreenState extends State<SnellenTestScreen> {
   DateTime? _testStartTime;
   final TestSessionManager _sessionManager = TestSessionManager();
   final CameraService _cameraService = CameraService();
+
   
   final List<List<String>> _snellenChart = [
     ['E'], // 20/200
@@ -46,34 +47,42 @@ class _SnellenTestScreenState extends State<SnellenTestScreen> {
   @override
   void initState() {
     super.initState();
-    _initializeCamera();
   }
 
-  Future<void> _initializeCamera() async {
-    if (cameras.isNotEmpty) {
-      CameraDescription? frontCamera;
-      for (final camera in cameras) {
-        if (camera.lensDirection == CameraLensDirection.front) {
-          frontCamera = camera;
-          break;
-        }
-      }
-      
-      _cameraController = CameraController(
-        frontCamera ?? cameras.first, // Use front camera if available, otherwise fallback to first camera
-        ResolutionPreset.medium,
-      );
-      
-      try {
-        await _cameraController!.initialize();
-        setState(() {
-          _isCameraInitialized = true;
-        });
-      } catch (e) {
-        print('Error initializing camera: $e');
-      }
-    }
+  Future<void> _initCamera() async {
+    print("Camera initializing");
+    final cameras = await availableCameras();
+    final frontCamera = cameras.firstWhere(
+          (cam) => cam.lensDirection == CameraLensDirection.front,
+    );
+    await _cameraService.startCamera(frontCamera);
   }
+
+  // Future<void> _initializeCamera() async {
+  //   if (cameras.isNotEmpty) {
+  //     CameraDescription? frontCamera;
+  //     for (final camera in cameras) {
+  //       if (camera.lensDirection == CameraLensDirection.front) {
+  //         frontCamera = camera;
+  //         break;
+  //       }
+  //     }
+  //
+  //     _cameraController = CameraController(
+  //       frontCamera ?? cameras.first, // Use front camera if available, otherwise fallback to first camera
+  //       ResolutionPreset.medium,
+  //     );
+  //
+  //     try {
+  //       await _cameraController!.initialize();
+  //       setState(() {
+  //         _isCameraInitialized = true;
+  //       });
+  //     } catch (e) {
+  //       print('Error initializing camera: $e');
+  //     }
+  //   }
+  // }
 
   @override
   void dispose() {
@@ -90,6 +99,7 @@ class _SnellenTestScreenState extends State<SnellenTestScreen> {
     });
     
     // Start AI analysis
+    _initCamera();
     _startAIAnalysis();
     _showNextLetter();
   }

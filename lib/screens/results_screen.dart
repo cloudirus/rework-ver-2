@@ -290,36 +290,36 @@ class _ResultsScreenState extends State<ResultsScreen> {
         await _cameraService.saveAllCapturedImages();
         uploadFolderAndJson();
 
-        final capturedPaths = _cameraService.getCapturedImagePaths();
-        print("📸 Captured paths: $capturedPaths");
+        // 🔹 Force load from eye_frames
+        final capturedPaths = await _getEyeFrameImages();
+        print("📸 Forced eye_frames paths: $capturedPaths");
 
         final eyeTrackingData = _cameraService.generateEyeTrackingData();
         print("👁️ Eye tracking data: $eyeTrackingData");
 
-        // 🔹 Phân tích tất cả ảnh
-        await _cameraService.analyzeAllCapturedImages();
-        EyeAnalysisResult? eyeAnalysis = _cameraService.getBestAnalysisResult();
-        print("🎯 Best analysis result (from camera service): $eyeAnalysis");
+        // 🔹 Only analyze images from eye_frames
+        EyeAnalysisResult? eyeAnalysis;
+        for (final imagePath in capturedPaths) {
+          try {
+            final result = await _mlService.analyzeEyeImage(imagePath);
+            print("🔍 Analyzed $imagePath → ${result.condition} (${result.confidence})");
 
-        // 1. Kết quả từ bài test
+            // keep highest-confidence result
+            if (eyeAnalysis == null || result.confidence > eyeAnalysis.confidence) {
+              eyeAnalysis = result;
+            }
+          } catch (e) {
+            print("❌ Analysis failed on $imagePath: $e");
+          }
+        }
+
+        // 1. Test-based analysis
         final testBasedResult = _createTestBasedAnalysis();
         final int correctAnswers = currentSession.correctAnswers;
         final int totalQuestions = currentSession.totalQuestions;
         print("📝 Test based result: $testBasedResult");
 
-        // 2. Gọi AI service (fallback nếu bestResult null)
-        if (eyeAnalysis == null && capturedPaths.isNotEmpty) {
-          try {
-            final latestImagePath = capturedPaths.last;
-            print("🔄 Fallback analyzing last image: $latestImagePath");
-
-            eyeAnalysis = await _mlService.analyzeEyeImage(latestImagePath);
-            print("✅ Eye Analysis (fallback): ${eyeAnalysis?.condition}");
-          } catch (e) {
-            print("❌ Eye Analysis failed: $e");
-          }
-        }
-
+        // 2. ML Vision Analysis
         VisionAnalysisResult? mlResult;
         try {
           mlResult = await _mlService.analyzeVisionTest(
@@ -328,12 +328,12 @@ class _ResultsScreenState extends State<ResultsScreen> {
             eyeTrackingData,
             eyeAnalysis: eyeAnalysis,
           );
-          print("✅ ML Analysis: ${mlResult.diagnosis}");
+          print("✅ ML Analysis (with eye_frames): ${mlResult.diagnosis}");
         } catch (e) {
           print("❌ ML Analysis failed: $e");
         }
 
-        // 3. Merge kết quả
+        // 3. Merge
         VisionAnalysisResult finalResult;
         if (mlResult != null) {
           finalResult = testBasedResult.copyWith(
@@ -358,7 +358,7 @@ class _ResultsScreenState extends State<ResultsScreen> {
       }
     } catch (e, s) {
       print("Error analyzing results: $e");
-      print(s); // 🔎 in luôn stack trace
+      print(s);
       if (mounted) {
         setState(() {
           _isAnalyzing = false;
@@ -368,6 +368,26 @@ class _ResultsScreenState extends State<ResultsScreen> {
   }
 
 
+  Future<List<String>> _getEyeFrameImages() async {
+    final appDir = await getApplicationDocumentsDirectory();
+    final dir = Directory('${appDir.path}/eye_frames/crop');
+
+    if (!await dir.exists()) {
+      print("⚠️ eye_frames directory not found at ${dir.path}");
+      return [];
+    }
+
+    final files = dir
+        .listSync()
+        .whereType<File>()
+        .where((f) => f.path.endsWith('.jpg') || f.path.endsWith('.png'))
+        .map((f) => f.path)
+        .toList();
+
+    files.sort(); // optional: ensures chronological order
+    print("📸 Found ${files.length} eye_frames: $files");
+    return files;
+  }
 
   double _weightBasedOnQuestionnare(
       List<TestResult> questionnaireResults, List<dynamic> questions) {
@@ -750,7 +770,7 @@ class _ResultsScreenState extends State<ResultsScreen> {
 
 
   Widget _buildAIAnalysisCard(EyeAnalysisResult eyeAnalysis) {
-    if (eyeAnalysis.condition == "Không có dữ liệu") {
+    if (eyeAnalysis.condition == "Unknown") {
       return Card(
         elevation: 4,
         child: Padding(

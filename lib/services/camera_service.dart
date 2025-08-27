@@ -1,7 +1,11 @@
 import 'dart:async';
-import 'dart:io';
+//import 'dart:ffi';
+import 'dart:io' ;
+import 'dart:ui'as ui;
 import 'package:camera/camera.dart';
+import 'package:image/image.dart' as img;
 import 'package:path_provider/path_provider.dart';
+import 'package:google_mlkit_face_detection/google_mlkit_face_detection.dart';
 import 'package:path/path.dart' as path;
 import 'ml_service.dart';
 
@@ -16,6 +20,15 @@ class CameraService {
   final MLService _mlService = MLService();
   final List<String> _capturedImages = [];
   final List<EyeAnalysisResult> _eyeAnalyses = [];
+  final List<EyeTrackingData> _eyeTrackingData = [];
+  final FaceDetector _faceDetector = FaceDetector(
+    options: FaceDetectorOptions(
+      enableClassification: true, // needed for eye open prob
+      enableTracking: true,
+    ),
+  );
+  Future<void>? _cameraStreamFuture;
+
   bool _isCapturing = false;
   Timer? _captureTimer;
   bool _shouldStopCapturing = false;
@@ -29,6 +42,7 @@ class CameraService {
     );
     await _cameraController!.initialize();
     print("📷 Camera started");
+    _startEyeTracking();
   }
 
   Future<void> stopCamera() async {
@@ -41,6 +55,106 @@ class CameraService {
 
   bool get isCameraActive => _cameraController != null;
 
+  void _startEyeTracking() {
+    if (_cameraController == null || !_cameraController!.value.isInitialized) {
+      print("⚠️ Camera not initialized for eye tracking");
+      return;
+    }
+
+    bool _isProcessingFrame = false;
+
+    _cameraStreamFuture = _cameraController!.startImageStream((CameraImage image) async {
+      if (_isProcessingFrame) return;
+      _isProcessingFrame = true;
+
+      try {
+        final inputImage = _convertCameraImage(image, _cameraController!);
+        final faces = await _faceDetector.processImage(inputImage);
+
+        if (faces.isNotEmpty) {
+          final face = faces.first;
+          final now = DateTime.now();
+
+          // store basic tracking
+          final eyeData = EyeTrackingData(
+            timestamp: now,
+            leftEyeX: face.boundingBox.left.toDouble(),
+            leftEyeY: face.boundingBox.top.toDouble(),
+            rightEyeX: face.boundingBox.right.toDouble(),
+            rightEyeY: face.boundingBox.top.toDouble(),
+            blinkDuration: (face.leftEyeOpenProbability ?? 1.0) < 0.5 ? 150.0 : 0.0,
+            isBlinking: (face.leftEyeOpenProbability ?? 1.0) < 0.5 ||
+                (face.rightEyeOpenProbability ?? 1.0) < 0.5,
+          );
+
+          _eyeTrackingData.add(eyeData);
+          if (_eyeTrackingData.length > 200) {
+            _eyeTrackingData.removeAt(0);
+          }
+
+          print("👁 Eye tracked: Blink=${eyeData.isBlinking}, "
+              "Left=(${eyeData.leftEyeX},${eyeData.leftEyeY})");
+
+          // ✅ Eye cropping + AI analysis
+          final eyePath = await _saveEyeCrop(inputImage, face);
+          if (eyePath != null) {
+            final analysis = await MLService().analyzeEyeImage(eyePath);
+            _eyeAnalyses.add(analysis);
+            print("🤖 AI Eye Analysis Result: $analysis");
+          }
+        }
+      } catch (e) {
+        print("⚠️ Eye tracking error: $e");
+      } finally {
+        _isProcessingFrame = false;
+      }
+    });
+  }
+
+
+
+  // Convert CameraImage → InputImage for ML Kit
+  InputImage _convertCameraImage(CameraImage image, CameraController controller) {
+    // Concatenate planes into a single byte array
+    final bytesBuilder = BytesBuilder();
+    for (final Plane plane in image.planes) {
+      bytesBuilder.add(plane.bytes);
+    }
+    final bytes = bytesBuilder.toBytes();
+
+    // Image size
+    final ui.Size imageSize = ui.Size(
+      image.width.toDouble(),
+      image.height.toDouble(),
+    );
+
+    // Camera rotation
+    final imageRotation =
+        InputImageRotationValue.fromRawValue(controller.description.sensorOrientation) ??
+            InputImageRotation.rotation0deg;
+
+    // Image format
+    final inputImageFormat =
+        InputImageFormatValue.fromRawValue(image.format.raw) ??
+            InputImageFormat.nv21;
+
+    // Metadata (no more planeData in new API)
+    final inputImageData = InputImageMetadata(
+      size: imageSize,
+      rotation: imageRotation,
+      format: inputImageFormat,
+      bytesPerRow: image.planes.first.bytesPerRow,
+    );
+
+    // Build InputImage
+    return InputImage.fromBytes(
+      bytes: bytes,
+      metadata: inputImageData,
+    );
+  }
+
+  // ⚡ Public getter
+  List<EyeTrackingData> getEyeTrackingData() => List.from(_eyeTrackingData);
 
   Future<String?> captureEyeImage({String? testType}) async {
     final cameraController = _cameraController;
@@ -55,7 +169,7 @@ class CameraService {
     try {
       final tempDir = await getTemporaryDirectory();
       final timestamp = DateTime.now().millisecondsSinceEpoch;
-      final imagePath = path.join(tempDir.path, 'eye_capture_$timestamp.jpg');
+      final imagePath = path.join(tempDir.path, 'eye_frame_$timestamp.jpg');
 
       final XFile imageFile = await cameraController.takePicture();
 
@@ -94,7 +208,7 @@ class CameraService {
 
   Future<void> saveAllCapturedImages() async {
     final appDir = await getApplicationDocumentsDirectory();
-    final saveDir = Directory('${appDir.path}/eye_frames');
+    final saveDir = Directory('${appDir.path}/eye_frames/full');
     // stopCaptureSession();
 
     // Create folder if it doesn't exist
@@ -239,13 +353,66 @@ class CameraService {
     stopCamera();
   }
 
+  Future<String?> _saveEyeCrop(InputImage inputImage, Face face) async {
+    // Convert InputImage to raw bytes
+    final bytes = inputImage.bytes;
+    if (bytes == null) return null;
+
+    // Decode using `package:image`
+    final img.Image? image = img.decodeImage(bytes);
+    if (image == null) return null;
+
+    img.Image crop;
+
+    // Try cropping eye first
+    final leftEye = face.landmarks[FaceLandmarkType.leftEye];
+    if (leftEye == null) {
+      print("⚠️ No eye landmark found, saving face instead");
+      crop = img.copyCrop(
+        image,
+        x: face.boundingBox.left.toInt(),
+        y: face.boundingBox.top.toInt(),
+        width: face.boundingBox.width.toInt(),
+        height: face.boundingBox.height.toInt(),
+      );
+    } else {
+      const cropSize = 100; // adjust based on resolution
+      crop = img.copyCrop(
+        image,
+        x: leftEye.position.x.toInt() - cropSize ~/ 2,
+        y: leftEye.position.y.toInt() - cropSize ~/ 2,
+        width: cropSize,
+        height: cropSize,
+      );
+    }
+
+    // Save to temp file
+    final appDir = await getApplicationDocumentsDirectory();
+    final dir = Directory('${appDir.path}/eye_frames/crop');
+
+    // Ensure directory exists
+    if (!await dir.exists()) {
+      await dir.create(recursive: true);
+    }
+
+    final path = '${dir.path}/eye_${DateTime.now().millisecondsSinceEpoch}.jpg';
+    final file = File(path)..writeAsBytesSync(img.encodePng(crop));
+
+    print("📸 Saved crop at: $path");
+    return file.path;
+  }
+
   List<EyeTrackingData> generateEyeTrackingData() {
-    final eyeTrackingData = <EyeTrackingData>[];
+    if (_eyeTrackingData.isNotEmpty) {
+      return List.from(_eyeTrackingData); // ✅ real tracked data
+    }
+
+    // fallback mock
+    final mockData = <EyeTrackingData>[];
     final now = DateTime.now();
 
-    // Mock data for demo - production extracts from actual images
     for (int i = 0; i < 50; i++) {
-      eyeTrackingData.add(EyeTrackingData(
+      mockData.add(EyeTrackingData(
         timestamp: now.subtract(Duration(seconds: i)),
         leftEyeX: 100.0 + (i % 10 - 5),
         leftEyeY: 50.0 + (i % 8 - 4),
@@ -256,8 +423,9 @@ class CameraService {
       ));
     }
 
-    return eyeTrackingData;
+    return mockData;
   }
+
 
   bool hasCaptures() {
     return _capturedImages.isNotEmpty;
