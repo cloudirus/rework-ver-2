@@ -545,9 +545,9 @@ class _ResultsScreenState extends State<ResultsScreen> {
             Container(
               padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 6),
               decoration: BoxDecoration(
-                color: scoreColor.withOpacity(0.1),
+                color: scoreColor.withValues(alpha: 0.1),
                 borderRadius: BorderRadius.circular(16),
-                border: Border.all(color: scoreColor.withOpacity(0.3)),
+                border: Border.all(color: scoreColor.withValues(alpha: 0.3)),
               ),
               child: Row(
                 mainAxisSize: MainAxisSize.min,
@@ -645,9 +645,9 @@ class _ResultsScreenState extends State<ResultsScreen> {
             Container(
               padding: const EdgeInsets.all(12),
               decoration: BoxDecoration(
-                color: conditionColor.withOpacity(0.1),
+                color: conditionColor.withValues(alpha: 0.1),
                 borderRadius: BorderRadius.circular(8),
-                border: Border.all(color: conditionColor.withOpacity(0.3)),
+                border: Border.all(color: conditionColor.withValues(alpha: 0.3)),
               ),
               child: Row(
                 children: [
