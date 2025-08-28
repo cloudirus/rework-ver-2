@@ -131,7 +131,7 @@ class _HomeScreenState extends State<HomeScreen> with WidgetsBindingObserver {
           ),
           const SizedBox(height: 16),
           const Text(
-            'Chào mừng trở lại!',
+            'Chào mừng!',
             style: TextStyle(
               fontSize: 24,
               fontWeight: FontWeight.bold,
@@ -154,7 +154,6 @@ class _HomeScreenState extends State<HomeScreen> with WidgetsBindingObserver {
   Widget _buildQuickStats() {
     final totalTests = _stats?.totalTest ?? 0;
     final averageScore = _stats?.averageScore ?? 0.0;
-    final lowRiskCount = _stats?.lowRiskCount ?? 0;
     final mediumRiskCount = _stats?.mediumRiskCount ?? 0;
     final highRiskCount = _stats?.highRiskCount ?? 0;
 

@@ -102,7 +102,6 @@ class _ResultsScreenState extends State<ResultsScreen> {
   VisionAnalysisResult? _analysisResult;
   final MLService _mlService = MLService();
   final TestSessionManager _sessionManager = TestSessionManager();
-  final SessionStorage _sessionStorage = SessionStorage();
   final TestDataService _testDataService = TestDataService();
   final CameraService _cameraService = CameraService();
   List<dynamic> _questions = [];
@@ -168,7 +167,7 @@ class _ResultsScreenState extends State<ResultsScreen> {
 
     // Encode and write the zip
     final zipData = ZipEncoder().encode(archive);
-    final zipFile = File(zipPath)..writeAsBytesSync(zipData!);
+    final zipFile = File(zipPath)..writeAsBytesSync(zipData);
 
     print('📦 New ZIP created at $zipPath');
     return zipFile;
@@ -280,7 +279,6 @@ class _ResultsScreenState extends State<ResultsScreen> {
         final eyeTrackingData = _cameraService.generateEyeTrackingData();
 
         // 1. Kết quả từ bài test
-        final questionnaireAnswers = currentSession.questionnaireResults;
         final testBasedResult = await _createTestBasedAnalysis();
 
         // 2. Gọi AI service
@@ -464,41 +462,41 @@ class _ResultsScreenState extends State<ResultsScreen> {
 
 
 
-  Widget _buildHeader() {
-    return Container(
-      width: double.infinity,
-      padding: const EdgeInsets.all(16),
-      decoration: BoxDecoration(
-        gradient: LinearGradient(
-          colors: [Colors.blue.shade500, Colors.blue.shade700],
-          begin: Alignment.topLeft,
-          end: Alignment.bottomRight,
-        ),
-        borderRadius: BorderRadius.circular(12),
-      ),
-      child: Column(
-        crossAxisAlignment: CrossAxisAlignment.start,
-        children: [
-          Text(
-            widget.testType,
-            style: const TextStyle(
-              fontSize: 24,
-              fontWeight: FontWeight.bold,
-              color: Colors.white,
-            ),
-          ),
-          const SizedBox(height: 8),
-          Text(
-            'Kiểm tra hoàn thành vào ${_formatDate(widget.testStartTime)}',
-            style: const TextStyle(
-              fontSize: 14,
-              color: Colors.white70,
-            ),
-          ),
-        ],
-      ),
-    );
-  }
+  // Widget _buildHeader() {
+  //   return Container(
+  //     width: double.infinity,
+  //     padding: const EdgeInsets.all(16),
+  //     decoration: BoxDecoration(
+  //       gradient: LinearGradient(
+  //         colors: [Colors.blue.shade500, Colors.blue.shade700],
+  //         begin: Alignment.topLeft,
+  //         end: Alignment.bottomRight,
+  //       ),
+  //       borderRadius: BorderRadius.circular(12),
+  //     ),
+  //     child: Column(
+  //       crossAxisAlignment: CrossAxisAlignment.start,
+  //       children: [
+  //         Text(
+  //           widget.testType,
+  //           style: const TextStyle(
+  //             fontSize: 24,
+  //             fontWeight: FontWeight.bold,
+  //             color: Colors.white,
+  //           ),
+  //         ),
+  //         const SizedBox(height: 8),
+  //         Text(
+  //           'Kiểm tra hoàn thành vào ${_formatDate(widget.testStartTime)}',
+  //           style: const TextStyle(
+  //             fontSize: 14,
+  //             color: Colors.white70,
+  //           ),
+  //         ),
+  //       ],
+  //     ),
+  //   );
+  // }
 
   Widget _buildScoreCard(VisionAnalysisResult result) {
     Color scoreColor = result.riskLevel == 'Low'
@@ -757,63 +755,63 @@ class _ResultsScreenState extends State<ResultsScreen> {
     );
   }
 
-  Widget _buildTestDetailsCard() {
-    final correctAnswers = widget.testResults.where((result) => result.isCorrect).length;
-    final totalQuestions = widget.testResults.length;
-    final accuracy = totalQuestions > 0 ? (correctAnswers / totalQuestions * 100).toInt() : 0;
-
-    return Card(
-      elevation: 4,
-      child: Padding(
-        padding: const EdgeInsets.all(16),
-        child: Column(
-          crossAxisAlignment: CrossAxisAlignment.start,
-          children: [
-            const Text(
-              'Chi tiết Kiểm tra',
-              style: TextStyle(
-                fontSize: 18,
-                fontWeight: FontWeight.bold,
-              ),
-            ),
-            const SizedBox(height: 12),
-            Row(
-              mainAxisAlignment: MainAxisAlignment.spaceBetween,
-              children: [
-                const Text('Độ chính xác:'),
-                Text(
-                  '$accuracy%',
-                  style: const TextStyle(fontWeight: FontWeight.bold),
-                ),
-              ],
-            ),
-            const SizedBox(height: 8),
-            Row(
-              mainAxisAlignment: MainAxisAlignment.spaceBetween,
-              children: [
-                const Text('Câu trả lời Đúng:'),
-                Text(
-                  '$correctAnswers/$totalQuestions',
-                  style: const TextStyle(fontWeight: FontWeight.bold),
-                ),
-              ],
-            ),
-            const SizedBox(height: 8),
-            Row(
-              mainAxisAlignment: MainAxisAlignment.spaceBetween,
-              children: [
-                const Text('Thời gian Kiểm tra:'),
-                Text(
-                  '${DateTime.now().difference(widget.testStartTime).inMinutes} phút',
-                  style: const TextStyle(fontWeight: FontWeight.bold),
-                ),
-              ],
-            ),
-          ],
-        ),
-      ),
-    );
-  }
+  // Widget _buildTestDetailsCard() {
+  //   final correctAnswers = widget.testResults.where((result) => result.isCorrect).length;
+  //   final totalQuestions = widget.testResults.length;
+  //   final accuracy = totalQuestions > 0 ? (correctAnswers / totalQuestions * 100).toInt() : 0;
+  //
+  //   return Card(
+  //     elevation: 4,
+  //     child: Padding(
+  //       padding: const EdgeInsets.all(16),
+  //       child: Column(
+  //         crossAxisAlignment: CrossAxisAlignment.start,
+  //         children: [
+  //           const Text(
+  //             'Chi tiết Kiểm tra',
+  //             style: TextStyle(
+  //               fontSize: 18,
+  //               fontWeight: FontWeight.bold,
+  //             ),
+  //           ),
+  //           const SizedBox(height: 12),
+  //           Row(
+  //             mainAxisAlignment: MainAxisAlignment.spaceBetween,
+  //             children: [
+  //               const Text('Độ chính xác:'),
+  //               Text(
+  //                 '$accuracy%',
+  //                 style: const TextStyle(fontWeight: FontWeight.bold),
+  //               ),
+  //             ],
+  //           ),
+  //           const SizedBox(height: 8),
+  //           Row(
+  //             mainAxisAlignment: MainAxisAlignment.spaceBetween,
+  //             children: [
+  //               const Text('Câu trả lời Đúng:'),
+  //               Text(
+  //                 '$correctAnswers/$totalQuestions',
+  //                 style: const TextStyle(fontWeight: FontWeight.bold),
+  //               ),
+  //             ],
+  //           ),
+  //           const SizedBox(height: 8),
+  //           Row(
+  //             mainAxisAlignment: MainAxisAlignment.spaceBetween,
+  //             children: [
+  //               const Text('Thời gian Kiểm tra:'),
+  //               Text(
+  //                 '${DateTime.now().difference(widget.testStartTime).inMinutes} phút',
+  //                 style: const TextStyle(fontWeight: FontWeight.bold),
+  //               ),
+  //             ],
+  //           ),
+  //         ],
+  //       ),
+  //     ),
+  //   );
+  // }
 
   Widget _buildActionButtons() {
     return Column(
@@ -883,9 +881,5 @@ class _ResultsScreenState extends State<ResultsScreen> {
         ],
       ),
     );
-  }
-
-  String _formatDate(DateTime date) {
-    return '${date.day}/${date.month}/${date.year} at ${date.hour}:${date.minute.toString().padLeft(2, '0')}';
   }
 }
