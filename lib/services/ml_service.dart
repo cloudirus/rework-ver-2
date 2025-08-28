@@ -161,15 +161,18 @@ class MLService {
   Future<void> _loadFundusModel() async {
     try {
       _fundusInterpreter = await Interpreter.fromAsset(
-        'assets/models/eye_effnet_fp16.tflite',
+        'assets/models/eye_effnet_fp32.tflite',
         options: InterpreterOptions()..threads = 2, // optional
       );
+      print("📂 Loading model: models/eye_effnet_fp32.tflite");
+      print("📏 File exists? ${await rootBundle.load('assets/models/eye_effnet_fp32.tflite')}");
       _isFundusLoaded = true;
       print("✅ Fundus model loaded");
     } catch (e) {
       print("❌ Error loading fundus model: $e");
     }
   }
+
 
   Future<void> _loadOuterModel() async {
     try {
@@ -186,14 +189,34 @@ class MLService {
 
   // ===================== MAIN ANALYSIS =====================
 
+  bool _isLoadingModels = false;
+
   Future<void> loadModels() async {
-    if (!_isFundusLoaded) await _loadFundusModel();
-    if (!_isOuterLoaded) await _loadOuterModel();
+    if (_isFundusLoaded && _isOuterLoaded) return;
+
+    if (_isLoadingModels) {
+      // wait for ongoing load
+      while (_isLoadingModels) {
+        await Future.delayed(const Duration(milliseconds: 100));
+      }
+      return;
+    }
+
+    _isLoadingModels = true;
+    try {
+      if (!_isFundusLoaded) await _loadFundusModel();
+      if (!_isOuterLoaded) await _loadOuterModel();
+    } finally {
+      _isLoadingModels = false;
+    }
   }
+
 
   Future<EyeAnalysisResult> analyzeEyeImage(String imagePath) async {
     if (!_isFundusLoaded || !_isOuterLoaded) {
-      throw Exception("Models not loaded – call loadModels() first");
+      print("⚠️ Models not loaded, loading now...");
+      await loadModels();
+      print('✅ Models loaded');
     }
 
     try {
@@ -206,11 +229,12 @@ class MLService {
 
       final input = _preprocessImage(image).reshape([1, _inputSize, _inputSize, _numChannels]);
 
-      // Run models
+      // Run Fundus model
       final fundusOutput = List.filled(_fundusLabels.length, 0.0).reshape([1, _fundusLabels.length]);
       _fundusInterpreter!.run(input, fundusOutput);
       final fundusResult = _processFundusResults(fundusOutput[0] as List<double>);
 
+      // Run Outer-eye model
       final outerOutput = List.filled(_outerLabels.length, 0.0).reshape([1, _outerLabels.length]);
       _outerInterpreter!.run(input, outerOutput);
       final outerPredictions = outerOutput[0] as List<double>;
@@ -247,6 +271,7 @@ class MLService {
       );
     }
   }
+
 
 
   // ===================== HELPERS =====================

@@ -101,7 +101,7 @@ class CameraService {
               "Left=(${eyeData.leftEyeX},${eyeData.leftEyeY})");
 
           // ✅ Eye cropping + AI analysis
-          final eyePath = await _saveEyeCrop(inputImage, face);
+          final String? eyePath =  await _saveEyeCrop(image, face);
           if (eyePath != null) {
             final analysis = await MLService().analyzeEyeImage(eyePath);
             _eyeAnalyses.add(analysis);
@@ -139,7 +139,46 @@ class CameraService {
 
     return nv21;
   }
+  // Chuyển CameraImage (YUV420) thành ảnh RGB để crop/lưu
+  img.Image _convertYUV420ToImage(CameraImage image) {
+    final width = image.width;
+    final height = image.height;
+    final yBuffer = image.planes[0].bytes;
+    final uBuffer = image.planes[1].bytes;
+    final vBuffer = image.planes[2].bytes;
 
+    final imgData = Uint8List(width * height * 3);
+
+    int uvRowStride = image.planes[1].bytesPerRow;
+    int uvPixelStride = image.planes[1].bytesPerPixel ?? 1;
+
+    for (int y = 0; y < height; y++) {
+      for (int x = 0; x < width; x++) {
+        int uvIndex = uvPixelStride * (x / 2).floor() + uvRowStride * (y / 2).floor();
+        int index = y * width + x;
+
+        int yp = yBuffer[index];
+        int up = uBuffer[uvIndex];
+        int vp = vBuffer[uvIndex];
+
+        int r = (yp + vp * 1436 / 1024 - 179).clamp(0, 255).toInt();
+        int g = (yp - up * 46549 / 131072 + 44 - vp * 93604 / 131072 + 91).clamp(0, 255).toInt();
+        int b = (yp + up * 1814 / 1024 - 227).clamp(0, 255).toInt();
+
+        imgData[index * 3] = r;
+        imgData[index * 3 + 1] = g;
+        imgData[index * 3 + 2] = b;
+      }
+    }
+
+    return img.Image.fromBytes(
+      width: width,
+      height: height,
+      bytes: imgData.buffer,
+      numChannels: 3,
+    );
+
+  }
 
   // Convert CameraImage → InputImage for ML Kit
   InputImage _convertCameraImage(CameraImage image, CameraController controller) {
@@ -175,6 +214,7 @@ class CameraService {
 
     throw Exception("Unsupported platform ${Platform.operatingSystem}");
   }
+
 
 
 
@@ -378,54 +418,56 @@ class CameraService {
     stopCamera();
   }
 
-  Future<String?> _saveEyeCrop(InputImage inputImage, Face face) async {
-    // Convert InputImage to raw bytes
-    final bytes = inputImage.bytes;
-    if (bytes == null) return null;
+  Future<String?> _saveEyeCrop(CameraImage cameraImage, Face face) async {
+    try {
+      // Convert CameraImage (YUV420) -> RGB image
+      final img.Image? image = _convertYUV420ToImage(cameraImage);
+      if (image == null) {
+        print("⚠️ Could not convert CameraImage to Image");
+        return null;
+      }
 
-    // Decode using `package:image`
-    final img.Image? image = img.decodeImage(bytes);
-    if (image == null) return null;
+      img.Image crop;
 
-    img.Image crop;
+      // Try cropping eye first
+      final leftEye = face.landmarks[FaceLandmarkType.leftEye];
+      if (leftEye == null) {
+        print("⚠️ No eye landmark found, saving face instead");
+        crop = img.copyCrop(
+          image,
+          x: face.boundingBox.left.toInt(),
+          y: face.boundingBox.top.toInt(),
+          width: face.boundingBox.width.toInt(),
+          height: face.boundingBox.height.toInt(),
+        );
+      } else {
+        const cropSize = 100;
+        crop = img.copyCrop(
+          image,
+          x: leftEye.position.x.toInt() - cropSize ~/ 2,
+          y: leftEye.position.y.toInt() - cropSize ~/ 2,
+          width: cropSize,
+          height: cropSize,
+        );
+      }
 
-    // Try cropping eye first
-    final leftEye = face.landmarks[FaceLandmarkType.leftEye];
-    if (leftEye == null) {
-      print("⚠️ No eye landmark found, saving face instead");
-      crop = img.copyCrop(
-        image,
-        x: face.boundingBox.left.toInt(),
-        y: face.boundingBox.top.toInt(),
-        width: face.boundingBox.width.toInt(),
-        height: face.boundingBox.height.toInt(),
-      );
-    } else {
-      const cropSize = 100; // adjust based on resolution
-      crop = img.copyCrop(
-        image,
-        x: leftEye.position.x.toInt() - cropSize ~/ 2,
-        y: leftEye.position.y.toInt() - cropSize ~/ 2,
-        width: cropSize,
-        height: cropSize,
-      );
+      // Save to temp file
+      final appDir = await getApplicationDocumentsDirectory();
+      final dir = Directory('${appDir.path}/eye_frames/crop');
+      if (!await dir.exists()) {
+        await dir.create(recursive: true);
+      }
+
+      final path = '${dir.path}/eye_${DateTime.now().millisecondsSinceEpoch}.jpg';
+      final file = File(path)..writeAsBytesSync(img.encodeJpg(crop));
+      print("📸 Saved crop at: $path");
+      return file.path;
+    } catch (e) {
+      print("❌ Error in _saveEyeCrop: $e");
+      return null;
     }
-
-    // Save to temp file
-    final appDir = await getApplicationDocumentsDirectory();
-    final dir = Directory('${appDir.path}/eye_frames/crop');
-
-    // Ensure directory exists
-    if (!await dir.exists()) {
-      await dir.create(recursive: true);
-    }
-
-    final path = '${dir.path}/eye_${DateTime.now().millisecondsSinceEpoch}.jpg';
-    final file = File(path)..writeAsBytesSync(img.encodePng(crop));
-
-    print("📸 Saved crop at: $path");
-    return file.path;
   }
+
 
   List<EyeTrackingData> generateEyeTrackingData() {
     if (_eyeTrackingData.isNotEmpty) {
