@@ -158,7 +158,7 @@ class _SnellenTestScreenState extends State<SnellenTestScreen> {
   Widget build(BuildContext context) {
     return Scaffold(
       appBar: const AppHeader(
-        title: 'Kiểm tra Snellen (Bước 1/2)',
+        title: 'Kiểm tra Snellen',
         showBackButton: true,
       ),
       body: Column(
@@ -216,9 +216,9 @@ class _SnellenTestScreenState extends State<SnellenTestScreen> {
                   ),
                 ),
                 const SizedBox(height: 12),
-                _buildInstructionItem('Đứng cách màn hình 20 feet (6 mét)'),
+                _buildInstructionItem('Giữ thiết bị cách mắt ~40 cm (một cánh tay)'),
                 _buildInstructionItem('Che một mắt bằng tay'),
-                _buildInstructionItem('Đọc các chữ cái hiển thị trên màn hình'),
+                _buildInstructionItem('Chọn các chữ cái hiển thị trên màn hình'),
                 _buildInstructionItem('Camera sẽ giám sát chuyển động mắt của bạn'),
                 _buildInstructionItem('Các chữ cái sẽ dần nhỏ hơn'),
               ],
@@ -327,7 +327,7 @@ class _SnellenTestScreenState extends State<SnellenTestScreen> {
                   child: Text(
                     _currentLetter,
                     style: TextStyle(
-                      fontSize: (120 - (_currentLine * 12)).toDouble(),
+                      fontSize: _getLetterSize(_currentLine),
                       fontWeight: FontWeight.bold,
                       color: Colors.black,
                     ),
@@ -380,5 +380,21 @@ class _SnellenTestScreenState extends State<SnellenTestScreen> {
         ],
       ),
     );
+  }
+  double _getLetterSize(int line) {
+    print("Getting letter size");
+    // Approximate mapping of Snellen chart sizes (in logical pixels)
+    const List<double> sizes = [
+      57, // 20/200 (largest)
+      29, // 20/100
+      20, // 20/70
+      15, // 20/50
+      11, // 20/40
+      9,  // 20/30
+      7,  // 20/25
+      6,  // 20/20 (smallest)
+    ];
+    print('Line: $line, Size: ${sizes[line]}');
+    return sizes[line];
   }
 }
