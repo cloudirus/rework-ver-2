@@ -23,20 +23,18 @@ class CameraService {
   final List<EyeTrackingData> _eyeTrackingData = [];
   final FaceDetector _faceDetector = FaceDetector(
     options: FaceDetectorOptions(
-      enableClassification: true,
-      enableLandmarks: true,// needed for eye open prob
+      enableClassification: true, // needed for eye open prob
       enableTracking: true,
     ),
   );
   Future<void>? _cameraStreamFuture;
-  bool get isInitialized => _cameraController?.value.isInitialized ?? false;
 
   bool _isCapturing = false;
   Timer? _captureTimer;
   bool _shouldStopCapturing = false;
   // bool _stopFlag = false;
 
-  Future<CameraController> startCamera(CameraDescription description) async {
+  Future<void> startCamera(CameraDescription description) async {
     _cameraController = CameraController(
       description,
       ResolutionPreset.medium,
@@ -45,7 +43,6 @@ class CameraService {
     await _cameraController!.initialize();
     print("📷 Camera started");
     _startEyeTracking();
-    return _cameraController!;
   }
 
   Future<void> stopCamera() async {
@@ -237,21 +234,7 @@ class CameraService {
   }
 
 
-  Future<List<EyeAnalysisResult>> analyzeAllCapturedImages() async {
-    final results = <EyeAnalysisResult>[];
 
-    for (final imagePath in _capturedImages) {
-      try {
-        final analysisResult = await _mlService.analyzeEyeImage(imagePath);
-        results.add(analysisResult);
-        _eyeAnalyses.add(analysisResult);
-      } catch (e) {
-        print('Error analyzing image $imagePath: $e');
-      }
-    }
-
-    return results;
-  }
 
   EyeAnalysisResult? getBestAnalysisResult() {
     if (_eyeAnalyses.isEmpty) return null;
@@ -301,21 +284,6 @@ class CameraService {
     );
   }
 
-  Future<void> cleanup() async {
-    for (final imagePath in _capturedImages) {
-      try {
-        final file = File(imagePath);
-        if (await file.exists()) {
-          await file.delete();
-        }
-      } catch (e) {
-        print('Error deleting image file $imagePath: $e');
-      }
-    }
-
-    _capturedImages.clear();
-    _eyeAnalyses.clear();
-  }
 
   List<String> getCapturedImagePaths() {
     return List.from(_capturedImages);
@@ -414,6 +382,17 @@ class CameraService {
     final mockData = <EyeTrackingData>[];
     final now = DateTime.now();
 
+    for (int i = 0; i < 50; i++) {
+      mockData.add(EyeTrackingData(
+        timestamp: now.subtract(Duration(seconds: i)),
+        leftEyeX: 100.0 + (i % 10 - 5),
+        leftEyeY: 50.0 + (i % 8 - 4),
+        rightEyeX: 200.0 + (i % 10 - 5),
+        rightEyeY: 50.0 + (i % 8 - 4),
+        blinkDuration: i % 20 == 0 ? 150.0 : 0.0,
+        isBlinking: i % 20 == 0,
+      ));
+    }
 
     return mockData;
   }

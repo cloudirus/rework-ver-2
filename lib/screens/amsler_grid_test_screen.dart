@@ -224,7 +224,8 @@ class _AmslerGridTestScreenState extends State<AmslerGridTestScreen> {
           if (_cameraController != null &&
               _cameraController!.value.isInitialized &&
               !_showQuestionnaire)
-            CameraPreviewWidget(controller: _cameraController!),
+            CameraPreviewWidget(cameraService: _cameraService),
+
 
 
 
