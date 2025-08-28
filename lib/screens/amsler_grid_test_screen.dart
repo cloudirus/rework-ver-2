@@ -199,7 +199,7 @@ class _AmslerGridTestScreenState extends State<AmslerGridTestScreen> {
   Widget build(BuildContext context) {
     return Scaffold(
       appBar: AppHeader(
-        title: 'Kiểm tra Lưới Amsler (Bước 2/2)',
+        title: 'Kiểm tra Lưới Amsler',
         showBackButton: true,
         onBackPressed: () {
           if (_showQuestionnaire) {
@@ -272,7 +272,7 @@ class _AmslerGridTestScreenState extends State<AmslerGridTestScreen> {
                   ),
                 ),
                 const SizedBox(height: 12),
-                _buildInstructionItem('1. Giữ thiết bị cách mắt 14-16 inch'),
+                _buildInstructionItem('1. Giữ thiết bị cách mắt ~40 cm (một cánh tay)'),
                 _buildInstructionItem('2. Che một mắt bằng tay'),
                 _buildInstructionItem('3. Tập trung vào chấm đỏ ở giữa'),
                 _buildInstructionItem('4. Chạm vào vùng biến dạng, mờ hoặc thiếu'),
