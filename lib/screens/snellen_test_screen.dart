@@ -9,10 +9,10 @@ import '../widgets/app_header.dart';
 import '../services/camera_service.dart';
 
 class SnellenTestScreen extends StatefulWidget {
-    const SnellenTestScreen({super.key});
+  const SnellenTestScreen({super.key});
 
-    @override
-    State<SnellenTestScreen> createState() => _SnellenTestScreenState();
+  @override
+  State<SnellenTestScreen> createState() => _SnellenTestScreenState();
 }
 
 class _SnellenTestScreenState extends State<SnellenTestScreen> {

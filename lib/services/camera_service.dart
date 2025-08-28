@@ -1,7 +1,9 @@
 import 'dart:async';
 //import 'dart:ffi';
 import 'dart:io' ;
-import 'dart:ui'as ui;
+import 'dart:ui';
+import 'dart:typed_data';
+
 import 'package:camera/camera.dart';
 import 'package:image/image.dart' as img;
 import 'package:path_provider/path_provider.dart';
@@ -114,47 +116,67 @@ class CameraService {
     });
   }
 
+  Uint8List _yuv420toNv21(CameraImage image) {
+    final int width = image.width;
+    final int height = image.height;
+    final int ySize = width * height;
+    final int uvSize = width * height ~/ 4;
+
+    final Uint8List nv21 = Uint8List(ySize + uvSize * 2);
+
+    // Y plane (full size)
+    nv21.setRange(0, ySize, image.planes[0].bytes);
+
+    // UV planes: Android camera gives U and V separately
+    final u = image.planes[1].bytes;
+    final v = image.planes[2].bytes;
+
+    int uvIndex = ySize;
+    for (int i = 0; i < u.length; i++) {
+      nv21[uvIndex++] = v[i];
+      nv21[uvIndex++] = u[i];
+    }
+
+    return nv21;
+  }
 
 
   // Convert CameraImage → InputImage for ML Kit
   InputImage _convertCameraImage(CameraImage image, CameraController controller) {
-    // Concatenate planes into a single byte array
-    final bytesBuilder = BytesBuilder();
-    for (final Plane plane in image.planes) {
-      bytesBuilder.add(plane.bytes);
-    }
-    final bytes = bytesBuilder.toBytes();
-
-    // Image size
-    final ui.Size imageSize = ui.Size(
-      image.width.toDouble(),
-      image.height.toDouble(),
-    );
-
-    // Camera rotation
     final imageRotation =
-        InputImageRotationValue.fromRawValue(controller.description.sensorOrientation) ??
-            InputImageRotation.rotation0deg;
+        InputImageRotationValue.fromRawValue(controller.description.sensorOrientation)
+            ?? InputImageRotation.rotation0deg;
 
-    // Image format
-    final inputImageFormat =
-        InputImageFormatValue.fromRawValue(image.format.raw) ??
-            InputImageFormat.nv21;
+    if (Platform.isAndroid) {
+      final bytes = _yuv420toNv21(image);
 
-    // Metadata (no more planeData in new API)
-    final inputImageData = InputImageMetadata(
-      size: imageSize,
-      rotation: imageRotation,
-      format: inputImageFormat,
-      bytesPerRow: image.planes.first.bytesPerRow,
-    );
+      return InputImage.fromBytes(
+        bytes: bytes,
+        metadata: InputImageMetadata(
+          size: Size(image.width.toDouble(), image.height.toDouble()),
+          rotation: imageRotation,
+          format: InputImageFormat.nv21,
+          bytesPerRow: image.planes[0].bytesPerRow,
+        ),
+      );
+    } else if (Platform.isIOS) {
+      final bytes = image.planes[0].bytes;
 
-    // Build InputImage
-    return InputImage.fromBytes(
-      bytes: bytes,
-      metadata: inputImageData,
-    );
+      return InputImage.fromBytes(
+        bytes: bytes,
+        metadata: InputImageMetadata(
+          size: Size(image.width.toDouble(), image.height.toDouble()),
+          rotation: imageRotation,
+          format: InputImageFormat.bgra8888,
+          bytesPerRow: image.planes[0].bytesPerRow,
+        ),
+      );
+    }
+
+    throw Exception("Unsupported platform ${Platform.operatingSystem}");
   }
+
+
 
   // ⚡ Public getter
   List<EyeTrackingData> getEyeTrackingData() => List.from(_eyeTrackingData);
