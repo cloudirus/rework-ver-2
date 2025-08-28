@@ -2,7 +2,6 @@ import 'dart:math';
 import '../models/test_result.dart';
 import '../models/test_session.dart';
 import 'dart:convert';
-import 'package:flutter/services.dart' show rootBundle;
 import 'package:path_provider/path_provider.dart';
 import 'dart:io';
 
@@ -160,11 +159,6 @@ class TestDataService {
     return 'Incomplete Test';
   }
 
-  Future<void> _loadQuestions() async {
-    final String data = await rootBundle.loadString('assets/questions.json');
-    _questions = json.decode(data)['questions'];
-  }
-
   double calculateOverallScore(TestSession session) {
     double totalScore = 0.0;
     int testCount = 0;
@@ -200,7 +194,7 @@ class TestDataService {
 
   double _weightBasedOnQuestionnare(
       List<TestResult> questionnaireResults,
-      List<dynamic> _ignoredQuestions, // kept to match your old signature
+      List<dynamic> ignoredQuestions, // kept to match your old signature
       ) {
     if (questionnaireResults.isEmpty) {
       print("📥 Questionnaire empty → default weight 1.0");
@@ -219,9 +213,10 @@ class TestDataService {
         value = int.tryParse(match.group(1)!);
       } else {
         // Fallbacks in case of weird whitespace or formatting
-        if (response.startsWith('1')) value = 1;
-        else if (response.startsWith('2')) value = 2;
-        else if (response.startsWith('3')) value = 3;
+        if (response.startsWith('1')) {
+          value = 1;
+        } else if (response.startsWith('2')) {value = 2;}
+        else if (response.startsWith('3')) {value = 3;}
       }
 
       if (value == null) {
@@ -245,7 +240,7 @@ class TestDataService {
   double calculateSnellenScore(List<TestResult> results) {
     if (results.isEmpty) return 0.0;
 
-    final visionLevels = ['20/200', '20/100', '20/70', '20/50', '20/40', '20/30', '20/25', '20/20'];
+    // final visionLevels = ['20/200', '20/100', '20/70', '20/50', '20/40', '20/30', '20/25', '20/20'];
     int bestLine = -1;
 
     for (final result in results) {
