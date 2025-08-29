@@ -48,32 +48,50 @@ class _QuestionnaireScreenState extends State<QuestionnaireScreen> {
   }
 
   Future<void> _completeQuestionnaire() async {
-    String answersString = _answers.toString();
+    // Ensure a session exists
+    final sessionManager = TestSessionManager();
+    var current = sessionManager.getCurrentSession();
+    current ??= sessionManager.startNewSession();
 
-    final result = TestResult(
-      line: 0,
-      letter: 'Questionnaire',
-      userResponse: answersString,
-      isCorrect: true,
-      timestamp: DateTime.now(),
-    );
 
-    _testResults.add(result);
-    _sessionManager.addQuestionnaireResult(result);
+// Create one TestResult per question and add to session
+//     final now = DateTime.now();
+//     for (int i = 0; i < _questions.length; i++) {
+//       final q = _questions[i];
+//       final questionText = q['question']?.toString() ?? 'Question $i';
+//       final selected = _answers[i] ?? '';
+//
 
-    final session = _sessionManager.getCurrentSession();
-    if (session != null) {
-      Navigator.push(
-        context,
-        MaterialPageRoute(
-          builder: (context) => ResultsScreen(
-            testType: 'Hoàn thành bài kiểm tra',
-            testResults: session.getAllResults(),
-            testStartTime: session.startTime,
-          ),
+// Build TestResult: line is question index, letter is question text marker
+      for (int i = 0; i < _answers.length; i++) {
+        final response = _answers[i] ?? "";
+        final tr = TestResult(
+          line: i,
+          letter: "Questionnaire",
+          userResponse: response,  // ✅ store each answer separately
+          isCorrect: true,
+          timestamp: DateTime.now(),
+        );
+        _sessionManager.addQuestionnaireResult(tr);
+      }
+
+
+// Optionally save sessions / navigate to results
+// If you have SessionStorage or _testDataService in your app, call those here.
+
+
+// Navigate to Results screen (if you want)
+    if (!mounted) return;
+    Navigator.push(
+      context,
+      MaterialPageRoute(
+        builder: (context) => ResultsScreen(
+          testType: 'Hoàn thành bài kiểm tra',
+          testResults: current!.getAllResults(),
+          testStartTime: current.startTime,
         ),
-      );
-    }
+      ),
+    );
   }
 
   @override

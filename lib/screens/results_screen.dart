@@ -15,49 +15,69 @@ import 'dart:convert';
 import 'package:flutter/services.dart' show rootBundle;
 
 class AnalysisResultLog {
-  final double accuracy;
+  final DateTime timestamp;
+  final int durations;
+  final double visionScore;
   final String riskLevel;
   final String diagnosis;
-  final DateTime timestamp;
+  final List<String> recommendations;
 
   AnalysisResultLog({
-    required this.accuracy,
+    required this.timestamp,
+    required this.durations,
+    required this.visionScore,
     required this.riskLevel,
     required this.diagnosis,
-    required this.timestamp,
+    required this.recommendations,
   });
 
-  Map<String, dynamic> toJson() => {
-    'accuracy': accuracy,
-    'riskLevel': riskLevel,
-    'diagnosis': diagnosis,
-    'timestamp': timestamp.toIso8601String(),
-  };
+  factory AnalysisResultLog.fromJson(Map<String, dynamic> json) {
+    return AnalysisResultLog(
+      timestamp: DateTime.parse(json['timestamp']),
+      durations: (json['durations'] as num?)?.toInt() ?? 0,
+      visionScore: (json['visionScore'] as num?)?.toDouble() ?? 0.0,
+      riskLevel: json['riskLevel'] ?? "Unknown",
+      diagnosis: json['diagnosis'] ?? "No diagnosis",
+      recommendations: json['recommendations'] is List
+          ? List<String>.from(json['recommendations'])
+          : [],
+    );
+  }
 }
 
-// ========================
-//  STORAGE: Save/Load JSON
-// ========================
 class AnalysisResultStorage {
   static Future<Directory> _getHistoryDir() async {
     final dir = await getApplicationDocumentsDirectory();
     final historyDir = Directory("${dir.path}/run_history");
-
     if (!await historyDir.exists()) {
       await historyDir.create(recursive: true);
     }
     return historyDir;
   }
 
-  static Future<void> saveResult(AnalysisResultLog result) async {
+  static Future<AnalysisResultLog?> loadLatestRun() async {
     final dir = await _getHistoryDir();
+    final files = dir
+        .listSync()
+        .whereType<File>()
+        .toList();
 
-    // Use timestamp as filename, e.g. 2025-08-26_14-30-12.json
-    final filename = result.timestamp.toIso8601String().replaceAll(":", "-");
-    final file = File("${dir.path}/$filename.json");
+    if (files.isEmpty) return null;
 
-    await file.writeAsString(jsonEncode(result.toJson()));
-    print("✅ Saved analysis result to ${file.path}");
+    // Find the newest file by last modified date
+    files.sort((a, b) => b.lastModifiedSync().compareTo(a.lastModifiedSync()));
+    final newestFile = files.first;
+
+    try {
+      final content = await newestFile.readAsString();
+      final data = jsonDecode(content);
+      print("Newest file ${newestFile.path} loaded!");
+      return AnalysisResultLog.fromJson(data);
+    } catch (e, stack) {
+      print("ERROR: File ${newestFile.path} cannot load → $e");
+      print(stack);
+      return null;
+    }
   }
 }
 
@@ -82,7 +102,6 @@ class _ResultsScreenState extends State<ResultsScreen> {
   VisionAnalysisResult? _analysisResult;
   final MLService _mlService = MLService();
   final TestSessionManager _sessionManager = TestSessionManager();
-  final SessionStorage _sessionStorage = SessionStorage();
   final TestDataService _testDataService = TestDataService();
   final CameraService _cameraService = CameraService();
   List<dynamic> _questions = [];
@@ -90,15 +109,6 @@ class _ResultsScreenState extends State<ResultsScreen> {
   @override
   void initState(){
     super.initState();
-    // final stats = TestDataService().getTestStatistics();
-    // final jsonString = const JsonEncoder.withIndent('  ').convert(stats);
-    // final file = File('test_statistics.json');
-    // file.writeAsString(jsonString);
-    //
-    // print('✅ Statistics saved at: ${file.path}');
-    // saveStatistics(stats);
-    // final loaded = loadStatistics();
-    // print("✅ Loaded: $loaded");
     _loadQuestions();
     _analyzeResults();
   }
@@ -110,28 +120,6 @@ class _ResultsScreenState extends State<ResultsScreen> {
     });
   }
 
-  // Future<File> _getLocalFile() async {
-  //   // Get the app's document directory (safe & persistent)
-  //   final directory = await getApplicationDocumentsDirectory();
-  //   return File('${directory.path}/test_statistics.json');
-  // }
-  // Future<void> saveStatistics(Map<String, dynamic> stats) async {
-  //   final file = await _getLocalFile();
-  //   final jsonString = jsonEncode(stats);
-  //   await file.writeAsString(jsonString);
-  //   print("📂 Saved stats at: ${file.path}");
-  // }
-
-  // Future<Map<String, dynamic>> loadStatistics() async {
-  //   final file = await _getLocalFile();
-  //
-  //   if (await file.exists()) {
-  //     final contents = await file.readAsString();
-  //     return jsonDecode(contents);
-  //   } else {
-  //     return {}; // return empty if file doesn’t exist
-  //   }
-  // }
   String _formattedTimestamp() {
     final now = DateTime.now();
     final dd = now.day.toString().padLeft(2, '0');
@@ -321,7 +309,7 @@ class _ResultsScreenState extends State<ResultsScreen> {
         final int totalQuestions = currentSession.totalQuestions;
         print("📝 Test based result: $testBasedResult");
 
-        // 2. ML Vision Analysis
+        // 2. Gọi AI service
         VisionAnalysisResult? mlResult;
         try {
           mlResult = await _mlService.analyzeVisionTest(
@@ -335,7 +323,7 @@ class _ResultsScreenState extends State<ResultsScreen> {
           print("❌ ML Analysis failed: $e");
         }
 
-        // 3. Merge
+        // 3. Merge kết quả
         VisionAnalysisResult finalResult;
         if (mlResult != null) {
           finalResult = testBasedResult.copyWith(
@@ -474,14 +462,8 @@ class _ResultsScreenState extends State<ResultsScreen> {
         eyeAnalysis: null,
       );
     }
-    double questionnaireWeight = _weightBasedOnQuestionnare(currentSession.questionnaireResults, _questions);
-    final correctAnswers = widget.testResults.where((r) => r.isCorrect).length;
-    final totalQuestions = widget.testResults.length;
-    final accuracyBeforeWeight = totalQuestions > 0 ? (correctAnswers / totalQuestions) : 0.0;
-    final accuracy = accuracyBeforeWeight*questionnaireWeight;
-
-    print("Accuracy before weight: $accuracyBeforeWeight");
-    print("Accuracy after weight: $accuracy");
+    final run = await AnalysisResultStorage.loadLatestRun();
+    final accuracy = run!.visionScore;
 
     // Determine risk level based on test performance only
     String riskLevel;
@@ -621,41 +603,41 @@ class _ResultsScreenState extends State<ResultsScreen> {
 
 
 
-  Widget _buildHeader() {
-    return Container(
-      width: double.infinity,
-      padding: const EdgeInsets.all(16),
-      decoration: BoxDecoration(
-        gradient: LinearGradient(
-          colors: [Colors.blue.shade500, Colors.blue.shade700],
-          begin: Alignment.topLeft,
-          end: Alignment.bottomRight,
-        ),
-        borderRadius: BorderRadius.circular(12),
-      ),
-      child: Column(
-        crossAxisAlignment: CrossAxisAlignment.start,
-        children: [
-          Text(
-            widget.testType,
-            style: const TextStyle(
-              fontSize: 24,
-              fontWeight: FontWeight.bold,
-              color: Colors.white,
-            ),
-          ),
-          const SizedBox(height: 8),
-          Text(
-            'Kiểm tra hoàn thành vào ${_formatDate(widget.testStartTime)}',
-            style: const TextStyle(
-              fontSize: 14,
-              color: Colors.white70,
-            ),
-          ),
-        ],
-      ),
-    );
-  }
+  // Widget _buildHeader() {
+  //   return Container(
+  //     width: double.infinity,
+  //     padding: const EdgeInsets.all(16),
+  //     decoration: BoxDecoration(
+  //       gradient: LinearGradient(
+  //         colors: [Colors.blue.shade500, Colors.blue.shade700],
+  //         begin: Alignment.topLeft,
+  //         end: Alignment.bottomRight,
+  //       ),
+  //       borderRadius: BorderRadius.circular(12),
+  //     ),
+  //     child: Column(
+  //       crossAxisAlignment: CrossAxisAlignment.start,
+  //       children: [
+  //         Text(
+  //           widget.testType,
+  //           style: const TextStyle(
+  //             fontSize: 24,
+  //             fontWeight: FontWeight.bold,
+  //             color: Colors.white,
+  //           ),
+  //         ),
+  //         const SizedBox(height: 8),
+  //         Text(
+  //           'Kiểm tra hoàn thành vào ${_formatDate(widget.testStartTime)}',
+  //           style: const TextStyle(
+  //             fontSize: 14,
+  //             color: Colors.white70,
+  //           ),
+  //         ),
+  //       ],
+  //     ),
+  //   );
+  // }
 
   Widget _buildScoreCard(VisionAnalysisResult result) {
     Color scoreColor = result.riskLevel == 'Low'
@@ -706,7 +688,7 @@ class _ResultsScreenState extends State<ResultsScreen> {
               decoration: BoxDecoration(
                 color: scoreColor.withValues(alpha: 0.1),
                 borderRadius: BorderRadius.circular(16),
-                border: Border.all(color:  scoreColor.withValues(alpha: 0.3)),
+                border: Border.all(color: scoreColor.withValues(alpha: 0.3)),
               ),
               child: Row(
                 mainAxisSize: MainAxisSize.min,
@@ -899,7 +881,6 @@ class _ResultsScreenState extends State<ResultsScreen> {
     );
   }
 
-
   Widget _buildRecommendationsCard(VisionAnalysisResult result) {
     return Card(
       elevation: 4,
@@ -1007,7 +988,8 @@ class _ResultsScreenState extends State<ResultsScreen> {
               _sessionManager.clearSession();
               // Cleanup captured images and analysis data
               _cameraService.cleanup();
-              //_fileCleanup();
+              _testDataService.getTestStatistics();
+              _fileCleanup();
               // Navigate back to home screen
               Navigator.of(context).popUntil((route) => route.isFirst);
             },

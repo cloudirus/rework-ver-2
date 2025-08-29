@@ -258,10 +258,10 @@ class _AuthScreenState extends State<AuthScreen> {
 
                         TextButton(
                           onPressed: () {
-                            _createAccount();
+                               _createAccount();
                           },
                           child: Text(
-                            'Chưa có tài khoản? Đăng ký',
+                                'Chưa có tài khoản? Đăng ký',
                             style: const TextStyle(color: Colors.black87),
                           ),
                         ),

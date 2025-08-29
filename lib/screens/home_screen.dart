@@ -76,16 +76,16 @@ class _HomeScreenState extends State<HomeScreen> with WidgetsBindingObserver {
       final dir = await getApplicationDocumentsDirectory();
       final file = File("${dir.path}/run_history/overall/overall.json");
       if (await file.exists()) {
-        final content = await file.readAsString();
-        final data = jsonDecode(content);
-        setState(() {
-          _stats = OverallStats.fromJson(data);
-        });
-      } else {
-        print("⚠️ overall.json not found in ${dir.path}/run_history/overall");
-      }
+    final content = await file.readAsString();
+    final data = jsonDecode(content);
+    setState(() {
+    _stats = OverallStats.fromJson(data);
+    });
+    } else {
+    print("⚠️ overall.json not found in ${dir.path}/run_history/overall");
+    }
     } catch (e) {
-      print("⚠️ Failed to load overall stats: $e");
+    print("⚠️ Failed to load overall stats: $e");
     }
   }
 
@@ -211,7 +211,7 @@ class _HomeScreenState extends State<HomeScreen> with WidgetsBindingObserver {
           _buildStatCard('Số lần Kiểm tra', totalTests.toString(), Icons.assignment_turned_in, Colors.green),
           _buildStatCard('Điểm TB', '${(averageScore * 100).toInt()}%', Icons.score, Colors.blue),
           _buildStatCard('Mức độ Rủi ro', riskLevel, Icons.security,
-              riskLevel == 'Thấp' ? Colors.green : riskLevel == 'Vừa' ? Colors.orange : Colors.red),
+            riskLevel == 'Thấp' ? Colors.green : riskLevel == 'Vừa' ? Colors.orange : Colors.red),
         ],
       ),
     );
