@@ -114,7 +114,7 @@ class TestDataService {
   final List<VisionTestSession> _testHistory = [];
   final List<TestSession> _allSessions = [];
   final TestSessionManager _sessionManager = TestSessionManager();
-  List<dynamic> _questions = [];
+  final List<dynamic> _questions = [];
 
   void addCompletedSession(TestSession session) {
     _allSessions.add(session);

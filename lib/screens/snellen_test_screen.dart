@@ -1,6 +1,5 @@
 import 'package:flutter/material.dart';
 import 'package:camera/camera.dart';
-import '../main.dart';
 import '../widgets/camera_preview_widget.dart';
 import '../models/test_result.dart';
 import '../models/test_session.dart';

@@ -304,7 +304,7 @@ class _ResultsScreenState extends State<ResultsScreen> {
         }
 
         // 1. Test-based analysis
-        final testBasedResult = _createTestBasedAnalysis();
+        final testBasedResult = await _createTestBasedAnalysis();
         final int correctAnswers = currentSession.correctAnswers;
         final int totalQuestions = currentSession.totalQuestions;
         print("📝 Test based result: $testBasedResult");
@@ -450,7 +450,7 @@ class _ResultsScreenState extends State<ResultsScreen> {
     return weight;
   }
 
-  VisionAnalysisResult _createTestBasedAnalysis() {
+  Future<VisionAnalysisResult> _createTestBasedAnalysis() async {
     final currentSession = _sessionManager.getCurrentSession();
     if (currentSession == null || _questions.isEmpty) {
       return VisionAnalysisResult(
@@ -499,13 +499,13 @@ class _ResultsScreenState extends State<ResultsScreen> {
       ];
     }
 
-    final log = AnalysisResultLog(
-      accuracy: accuracy,
-      riskLevel: riskLevel,
-      diagnosis: diagnosis,
-      timestamp: DateTime.now(),
-    );
-    AnalysisResultStorage.saveResult(log);
+    // final log = AnalysisResultLog(
+    //   accuracy: accuracy,
+    //   riskLevel: riskLevel,
+    //   diagnosis: diagnosis,
+    //   timestamp: DateTime.now(),
+    // );
+    // AnalysisResultStorage.saveResult(log);
 
     return VisionAnalysisResult(
       visionScore: accuracy,
