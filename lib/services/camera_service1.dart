@@ -61,11 +61,11 @@ class CameraService {
       return;
     }
 
-    bool _isProcessingFrame = false;
+    bool isProcessingFrame = false;
 
     _cameraStreamFuture = _cameraController!.startImageStream((CameraImage image) async {
-      if (_isProcessingFrame) return;
-      _isProcessingFrame = true;
+      if (isProcessingFrame) return;
+      isProcessingFrame = true;
 
       try {
         final inputImage = _convertCameraImage(image, _cameraController!);
@@ -106,7 +106,7 @@ class CameraService {
       } catch (e) {
         print("⚠️ Eye tracking error: $e");
       } finally {
-        _isProcessingFrame = false;
+        isProcessingFrame = false;
       }
     });
   }

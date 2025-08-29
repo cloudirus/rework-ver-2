@@ -66,11 +66,11 @@ class CameraService {
       return;
     }
 
-    bool _isProcessingFrame = false;
+    bool isProcessingFrame = false;
 
     _cameraStreamFuture = _cameraController!.startImageStream((CameraImage image) async {
-      if (_isProcessingFrame) return;
-      _isProcessingFrame = true;
+      if (isProcessingFrame) return;
+      isProcessingFrame = true;
 
       try {
         final inputImage = _convertCameraImage(image, _cameraController!);
@@ -111,7 +111,7 @@ class CameraService {
       } catch (e) {
         print("⚠️ Eye tracking error: $e");
       } finally {
-        _isProcessingFrame = false;
+        isProcessingFrame = false;
       }
     });
   }
@@ -421,11 +421,7 @@ class CameraService {
   Future<String?> _saveEyeCrop(CameraImage cameraImage, Face face) async {
     try {
       // Convert CameraImage (YUV420) -> RGB image
-      final img.Image? image = _convertYUV420ToImage(cameraImage);
-      if (image == null) {
-        print("⚠️ Could not convert CameraImage to Image");
-        return null;
-      }
+      final img.Image image = _convertYUV420ToImage(cameraImage);
 
       img.Image crop;
 

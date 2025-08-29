@@ -4,4 +4,7 @@
 /android/app/build/
 /android/app/build/intermediates/javac/debug/compileDebugJavaWithJavac/classes/
 /android/build/
-/build/
+/build
+/linux/flutter/ephemeral/.plugin_symlinks
+/.idea/libraries
+/.idea/
