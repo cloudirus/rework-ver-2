@@ -1,9 +1,7 @@
 import 'dart:async';
 //import 'dart:ffi';
 import 'dart:io' ;
-import 'dart:ui';
-import 'dart:typed_data';
-
+import 'dart:ui'as ui;
 import 'package:camera/camera.dart';
 import 'package:image/image.dart' as img;
 import 'package:path_provider/path_provider.dart';
@@ -25,20 +23,18 @@ class CameraService {
   final List<EyeTrackingData> _eyeTrackingData = [];
   final FaceDetector _faceDetector = FaceDetector(
     options: FaceDetectorOptions(
-      enableClassification: true,
-      enableLandmarks: true,// needed for eye open prob
+      enableClassification: true, // needed for eye open prob
       enableTracking: true,
     ),
   );
   Future<void>? _cameraStreamFuture;
-  bool get isInitialized => _cameraController?.value.isInitialized ?? false;
 
   bool _isCapturing = false;
   Timer? _captureTimer;
   bool _shouldStopCapturing = false;
   // bool _stopFlag = false;
 
-  Future<CameraController> startCamera(CameraDescription description) async {
+  Future<void> startCamera(CameraDescription description) async {
     _cameraController = CameraController(
       description,
       ResolutionPreset.medium,
@@ -47,7 +43,6 @@ class CameraService {
     await _cameraController!.initialize();
     print("📷 Camera started");
     _startEyeTracking();
-    return _cameraController!;
   }
 
   Future<void> stopCamera() async {
@@ -101,7 +96,7 @@ class CameraService {
               "Left=(${eyeData.leftEyeX},${eyeData.leftEyeY})");
 
           // ✅ Eye cropping + AI analysis
-          final String? eyePath =  await _saveEyeCrop(image, face);
+          final eyePath = await _saveEyeCrop(inputImage, face);
           if (eyePath != null) {
             final analysis = await MLService().analyzeEyeImage(eyePath);
             _eyeAnalyses.add(analysis);
@@ -116,107 +111,47 @@ class CameraService {
     });
   }
 
-  Uint8List _yuv420toNv21(CameraImage image) {
-    final int width = image.width;
-    final int height = image.height;
-    final int ySize = width * height;
-    final int uvSize = width * height ~/ 4;
 
-    final Uint8List nv21 = Uint8List(ySize + uvSize * 2);
-
-    // Y plane (full size)
-    nv21.setRange(0, ySize, image.planes[0].bytes);
-
-    // UV planes: Android camera gives U and V separately
-    final u = image.planes[1].bytes;
-    final v = image.planes[2].bytes;
-
-    int uvIndex = ySize;
-    for (int i = 0; i < u.length; i++) {
-      nv21[uvIndex++] = v[i];
-      nv21[uvIndex++] = u[i];
-    }
-
-    return nv21;
-  }
-  // Chuyển CameraImage (YUV420) thành ảnh RGB để crop/lưu
-  img.Image _convertYUV420ToImage(CameraImage image) {
-    final width = image.width;
-    final height = image.height;
-    final yBuffer = image.planes[0].bytes;
-    final uBuffer = image.planes[1].bytes;
-    final vBuffer = image.planes[2].bytes;
-
-    final imgData = Uint8List(width * height * 3);
-
-    int uvRowStride = image.planes[1].bytesPerRow;
-    int uvPixelStride = image.planes[1].bytesPerPixel ?? 1;
-
-    for (int y = 0; y < height; y++) {
-      for (int x = 0; x < width; x++) {
-        int uvIndex = uvPixelStride * (x / 2).floor() + uvRowStride * (y / 2).floor();
-        int index = y * width + x;
-
-        int yp = yBuffer[index];
-        int up = uBuffer[uvIndex];
-        int vp = vBuffer[uvIndex];
-
-        int r = (yp + vp * 1436 / 1024 - 179).clamp(0, 255).toInt();
-        int g = (yp - up * 46549 / 131072 + 44 - vp * 93604 / 131072 + 91).clamp(0, 255).toInt();
-        int b = (yp + up * 1814 / 1024 - 227).clamp(0, 255).toInt();
-
-        imgData[index * 3] = r;
-        imgData[index * 3 + 1] = g;
-        imgData[index * 3 + 2] = b;
-      }
-    }
-
-    return img.Image.fromBytes(
-      width: width,
-      height: height,
-      bytes: imgData.buffer,
-      numChannels: 3,
-    );
-
-  }
 
   // Convert CameraImage → InputImage for ML Kit
   InputImage _convertCameraImage(CameraImage image, CameraController controller) {
-    final imageRotation =
-        InputImageRotationValue.fromRawValue(controller.description.sensorOrientation)
-            ?? InputImageRotation.rotation0deg;
-
-    if (Platform.isAndroid) {
-      final bytes = _yuv420toNv21(image);
-
-      return InputImage.fromBytes(
-        bytes: bytes,
-        metadata: InputImageMetadata(
-          size: Size(image.width.toDouble(), image.height.toDouble()),
-          rotation: imageRotation,
-          format: InputImageFormat.nv21,
-          bytesPerRow: image.planes[0].bytesPerRow,
-        ),
-      );
-    } else if (Platform.isIOS) {
-      final bytes = image.planes[0].bytes;
-
-      return InputImage.fromBytes(
-        bytes: bytes,
-        metadata: InputImageMetadata(
-          size: Size(image.width.toDouble(), image.height.toDouble()),
-          rotation: imageRotation,
-          format: InputImageFormat.bgra8888,
-          bytesPerRow: image.planes[0].bytesPerRow,
-        ),
-      );
+    // Concatenate planes into a single byte array
+    final bytesBuilder = BytesBuilder();
+    for (final Plane plane in image.planes) {
+      bytesBuilder.add(plane.bytes);
     }
+    final bytes = bytesBuilder.toBytes();
 
-    throw Exception("Unsupported platform ${Platform.operatingSystem}");
+    // Image size
+    final ui.Size imageSize = ui.Size(
+      image.width.toDouble(),
+      image.height.toDouble(),
+    );
+
+    // Camera rotation
+    final imageRotation =
+        InputImageRotationValue.fromRawValue(controller.description.sensorOrientation) ??
+            InputImageRotation.rotation0deg;
+
+    // Image format
+    final inputImageFormat =
+        InputImageFormatValue.fromRawValue(image.format.raw) ??
+            InputImageFormat.nv21;
+
+    // Metadata (no more planeData in new API)
+    final inputImageData = InputImageMetadata(
+      size: imageSize,
+      rotation: imageRotation,
+      format: inputImageFormat,
+      bytesPerRow: image.planes.first.bytesPerRow,
+    );
+
+    // Build InputImage
+    return InputImage.fromBytes(
+      bytes: bytes,
+      metadata: inputImageData,
+    );
   }
-
-
-
 
   // ⚡ Public getter
   List<EyeTrackingData> getEyeTrackingData() => List.from(_eyeTrackingData);
@@ -299,21 +234,7 @@ class CameraService {
   }
 
 
-  Future<List<EyeAnalysisResult>> analyzeAllCapturedImages() async {
-    final results = <EyeAnalysisResult>[];
 
-    for (final imagePath in _capturedImages) {
-      try {
-        final analysisResult = await _mlService.analyzeEyeImage(imagePath);
-        results.add(analysisResult);
-        _eyeAnalyses.add(analysisResult);
-      } catch (e) {
-        print('Error analyzing image $imagePath: $e');
-      }
-    }
-
-    return results;
-  }
 
   EyeAnalysisResult? getBestAnalysisResult() {
     if (_eyeAnalyses.isEmpty) return null;
@@ -363,21 +284,6 @@ class CameraService {
     );
   }
 
-  Future<void> cleanup() async {
-    for (final imagePath in _capturedImages) {
-      try {
-        final file = File(imagePath);
-        if (await file.exists()) {
-          await file.delete();
-        }
-      } catch (e) {
-        print('Error deleting image file $imagePath: $e');
-      }
-    }
-
-    _capturedImages.clear();
-    _eyeAnalyses.clear();
-  }
 
   List<String> getCapturedImagePaths() {
     return List.from(_capturedImages);
@@ -418,56 +324,54 @@ class CameraService {
     stopCamera();
   }
 
-  Future<String?> _saveEyeCrop(CameraImage cameraImage, Face face) async {
-    try {
-      // Convert CameraImage (YUV420) -> RGB image
-      final img.Image? image = _convertYUV420ToImage(cameraImage);
-      if (image == null) {
-        print("⚠️ Could not convert CameraImage to Image");
-        return null;
-      }
+  Future<String?> _saveEyeCrop(InputImage inputImage, Face face) async {
+    // Convert InputImage to raw bytes
+    final bytes = inputImage.bytes;
+    if (bytes == null) return null;
 
-      img.Image crop;
+    // Decode using `package:image`
+    final img.Image? image = img.decodeImage(bytes);
+    if (image == null) return null;
 
-      // Try cropping eye first
-      final leftEye = face.landmarks[FaceLandmarkType.leftEye];
-      if (leftEye == null) {
-        print("⚠️ No eye landmark found, saving face instead");
-        crop = img.copyCrop(
-          image,
-          x: face.boundingBox.left.toInt(),
-          y: face.boundingBox.top.toInt(),
-          width: face.boundingBox.width.toInt(),
-          height: face.boundingBox.height.toInt(),
-        );
-      } else {
-        const cropSize = 100;
-        crop = img.copyCrop(
-          image,
-          x: leftEye.position.x.toInt() - cropSize ~/ 2,
-          y: leftEye.position.y.toInt() - cropSize ~/ 2,
-          width: cropSize,
-          height: cropSize,
-        );
-      }
+    img.Image crop;
 
-      // Save to temp file
-      final appDir = await getApplicationDocumentsDirectory();
-      final dir = Directory('${appDir.path}/eye_frames/crop');
-      if (!await dir.exists()) {
-        await dir.create(recursive: true);
-      }
-
-      final path = '${dir.path}/eye_${DateTime.now().millisecondsSinceEpoch}.jpg';
-      final file = File(path)..writeAsBytesSync(img.encodeJpg(crop));
-      print("📸 Saved crop at: $path");
-      return file.path;
-    } catch (e) {
-      print("❌ Error in _saveEyeCrop: $e");
-      return null;
+    // Try cropping eye first
+    final leftEye = face.landmarks[FaceLandmarkType.leftEye];
+    if (leftEye == null) {
+      print("⚠️ No eye landmark found, saving face instead");
+      crop = img.copyCrop(
+        image,
+        x: face.boundingBox.left.toInt(),
+        y: face.boundingBox.top.toInt(),
+        width: face.boundingBox.width.toInt(),
+        height: face.boundingBox.height.toInt(),
+      );
+    } else {
+      const cropSize = 100; // adjust based on resolution
+      crop = img.copyCrop(
+        image,
+        x: leftEye.position.x.toInt() - cropSize ~/ 2,
+        y: leftEye.position.y.toInt() - cropSize ~/ 2,
+        width: cropSize,
+        height: cropSize,
+      );
     }
-  }
 
+    // Save to temp file
+    final appDir = await getApplicationDocumentsDirectory();
+    final dir = Directory('${appDir.path}/eye_frames/crop');
+
+    // Ensure directory exists
+    if (!await dir.exists()) {
+      await dir.create(recursive: true);
+    }
+
+    final path = '${dir.path}/eye_${DateTime.now().millisecondsSinceEpoch}.jpg';
+    final file = File(path)..writeAsBytesSync(img.encodePng(crop));
+
+    print("📸 Saved crop at: $path");
+    return file.path;
+  }
 
   List<EyeTrackingData> generateEyeTrackingData() {
     if (_eyeTrackingData.isNotEmpty) {
@@ -478,6 +382,17 @@ class CameraService {
     final mockData = <EyeTrackingData>[];
     final now = DateTime.now();
 
+    for (int i = 0; i < 50; i++) {
+      mockData.add(EyeTrackingData(
+        timestamp: now.subtract(Duration(seconds: i)),
+        leftEyeX: 100.0 + (i % 10 - 5),
+        leftEyeY: 50.0 + (i % 8 - 4),
+        rightEyeX: 200.0 + (i % 10 - 5),
+        rightEyeY: 50.0 + (i % 8 - 4),
+        blinkDuration: i % 20 == 0 ? 150.0 : 0.0,
+        isBlinking: i % 20 == 0,
+      ));
+    }
 
     return mockData;
   }

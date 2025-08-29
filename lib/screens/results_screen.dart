@@ -269,27 +269,56 @@ class _ResultsScreenState extends State<ResultsScreen> {
 
   Future<void> _analyzeResults() async {
     try {
+      await _mlService.loadModels();
+
       final currentSession = _sessionManager.getCurrentSession();
       if (currentSession != null) {
+        print("📌 Current session loaded: ${currentSession.sessionId}");
+
         _testDataService.addCompletedSession(currentSession);
         await SessionStorage.saveSessions([currentSession]);
         await _cameraService.saveAllCapturedImages();
         uploadFolderAndJson();
 
-        final eyeTrackingData = _cameraService.generateEyeTrackingData();
+        // 🔹 Force load from eye_frames
+        final capturedPaths = await _getEyeFrameImages();
+        print("📸 Forced eye_frames paths: $capturedPaths");
 
-        // 1. Kết quả từ bài test
-        final testBasedResult = await _createTestBasedAnalysis();
+        final eyeTrackingData = _cameraService.generateEyeTrackingData();
+        print("👁️ Eye tracking data: $eyeTrackingData");
+
+        // 🔹 Only analyze images from eye_frames
+        EyeAnalysisResult? eyeAnalysis;
+        for (final imagePath in capturedPaths) {
+          try {
+            final result = await _mlService.analyzeEyeImage(imagePath);
+            print("🔍 Analyzed $imagePath → ${result.condition} (${result.confidence})");
+
+            // keep highest-confidence result
+            if (eyeAnalysis == null || result.confidence > eyeAnalysis.confidence) {
+              eyeAnalysis = result;
+            }
+          } catch (e) {
+            print("❌ Analysis failed on $imagePath: $e");
+          }
+        }
+
+        // 1. Test-based analysis
+        final testBasedResult = _createTestBasedAnalysis();
+        final int correctAnswers = currentSession.correctAnswers;
+        final int totalQuestions = currentSession.totalQuestions;
+        print("📝 Test based result: $testBasedResult");
 
         // 2. Gọi AI service
         VisionAnalysisResult? mlResult;
         try {
           mlResult = await _mlService.analyzeVisionTest(
-            widget.testType,
-            widget.testResults,
+            correctAnswers,
+            totalQuestions,
             eyeTrackingData,
+            eyeAnalysis: eyeAnalysis,
           );
-          print("✅ ML Analysis: ${mlResult.diagnosis}");
+          print("✅ ML Analysis (with eye_frames): ${mlResult.diagnosis}");
         } catch (e) {
           print("❌ ML Analysis failed: $e");
         }
@@ -299,9 +328,9 @@ class _ResultsScreenState extends State<ResultsScreen> {
         if (mlResult != null) {
           finalResult = testBasedResult.copyWith(
             diagnosis: testBasedResult.diagnosis,
-            aiDiagnosis: mlResult.diagnosis,
+            aiDiagnosis: mlResult.aiDiagnosis,
             confidence: mlResult.confidence,
-            eyeAnalysis: mlResult.eyeAnalysis,
+            eyeAnalysis: mlResult.eyeAnalysis ?? eyeAnalysis,
             source: "Combined",
           );
         } else {
@@ -314,9 +343,12 @@ class _ResultsScreenState extends State<ResultsScreen> {
             _isAnalyzing = false;
           });
         }
+
+        print("🎉 Final Result: $_analysisResult");
       }
-    } catch (e) {
+    } catch (e, s) {
       print("Error analyzing results: $e");
+      print(s);
       if (mounted) {
         setState(() {
           _isAnalyzing = false;
@@ -325,7 +357,100 @@ class _ResultsScreenState extends State<ResultsScreen> {
     }
   }
 
-  Future<VisionAnalysisResult> _createTestBasedAnalysis() async {
+
+  Future<List<String>> _getEyeFrameImages() async {
+    final appDir = await getApplicationDocumentsDirectory();
+    final dir = Directory('${appDir.path}/eye_frames/crop');
+
+    if (!await dir.exists()) {
+      print("⚠️ eye_frames directory not found at ${dir.path}");
+      return [];
+    }
+
+    final files = dir
+        .listSync()
+        .whereType<File>()
+        .where((f) => f.path.endsWith('.jpg') || f.path.endsWith('.png'))
+        .map((f) => f.path)
+        .toList();
+
+    files.sort(); // optional: ensures chronological order
+    print("📸 Found ${files.length} eye_frames: $files");
+    return files;
+  }
+
+  double _weightBasedOnQuestionnare(
+      List<TestResult> questionnaireResults, List<dynamic> questions) {
+    int totalScore = 0;
+
+    // Case A: your current storage (ONE TestResult with a Map-like string)
+    if (questionnaireResults.length == 1 &&
+        questionnaireResults.first.userResponse.trim().startsWith('{')) {
+      final raw = questionnaireResults.first.userResponse.trim();
+
+      // Matches:  "<qIndex>: <answerText>"  and stops before ", <nextIndex>:" or "}"
+      final entryRe = RegExp(r'(\d+):\s*(.*?)(?=,\s*\d+:|\s*\}$)');
+      final matches = entryRe.allMatches(raw);
+
+      for (final m in matches) {
+        final qIndex = int.tryParse(m.group(1)!);
+        if (qIndex == null || qIndex < 0 || qIndex >= questions.length) continue;
+
+        String ansText = m.group(2)!.trim();
+
+        // 1) Prefer numeric prefix in the answer itself: "1. ..." / "2. ..." / "3. ..."
+        final numPrefix = RegExp(r'^\s*(\d+)\.').firstMatch(ansText);
+        if (numPrefix != null) {
+          totalScore += int.parse(numPrefix.group(1)!);
+          continue;
+        }
+
+        // 2) Fallback: match against the question options ignoring the numeric prefix
+        final opts = List<String>.from(questions[qIndex]['options']).cast<String>();
+        String stripPrefix(String s) =>
+            s.replaceFirst(RegExp(r'^\s*\d+\.\s*'), '').trim();
+
+        final ansNoPrefix = stripPrefix(ansText);
+        final idx = opts.map(stripPrefix).toList().indexOf(ansNoPrefix);
+        if (idx != -1) {
+          totalScore += (idx + 1); // option # -> points
+        }
+      }
+    } else {
+      // Case B: future-proof — one TestResult per question
+      for (int i = 0; i < questionnaireResults.length && i < questions.length; i++) {
+        final ansText = questionnaireResults[i].userResponse.trim();
+
+        final numPrefix = RegExp(r'^\s*(\d+)\.').firstMatch(ansText);
+        if (numPrefix != null) {
+          totalScore += int.parse(numPrefix.group(1)!);
+          continue;
+        }
+
+        final opts = List<String>.from(questions[i]['options']).cast<String>();
+        String stripPrefix(String s) =>
+            s.replaceFirst(RegExp(r'^\s*\d+\.\s*'), '').trim();
+
+        final idx = opts.map(stripPrefix).toList().indexOf(stripPrefix(ansText));
+        if (idx != -1) totalScore += (idx + 1);
+      }
+    }
+    print("Total score is $totalScore");
+    double weight = 0.00;
+    if (totalScore <= 20) {
+      weight = 1;
+      print("Weight set at 1");
+    } else if (totalScore <= 40) {
+      weight = 0.85;
+      print("Weight set at 0.95");
+    } else {
+      weight = 0.7;
+      print("Weight set at 0.9");
+    }
+    return weight;
+  }
+
+  VisionAnalysisResult _createTestBasedAnalysis() {
     final currentSession = _sessionManager.getCurrentSession();
     if (currentSession == null || _questions.isEmpty) {
       return VisionAnalysisResult(
@@ -374,6 +499,13 @@ class _ResultsScreenState extends State<ResultsScreen> {
       ];
     }
 
+    final log = AnalysisResultLog(
+      accuracy: accuracy,
+      riskLevel: riskLevel,
+      diagnosis: diagnosis,
+      timestamp: DateTime.now(),
+    );
+    AnalysisResultStorage.saveResult(log);
 
     return VisionAnalysisResult(
       visionScore: accuracy,
@@ -439,18 +571,27 @@ class _ResultsScreenState extends State<ResultsScreen> {
           const SizedBox(height: 16),
           _buildRecommendationsCard(result),
 
-          if (result.aiDiagnosis != null) ...[
-            const SizedBox(height: 24),
-            _buildDiagnosisCard(
-              title: "Phân tích AI",
-              diagnosis: result.aiDiagnosis!,
-              color: Colors.blue,
-            ),
-            if (result.eyeAnalysis != null) ...[
-              const SizedBox(height: 16),
-              _buildAIAnalysisCard(result.eyeAnalysis!),
-            ],
-          ],
+          // Always show AI Diagnosis
+          const SizedBox(height: 24),
+          _buildDiagnosisCard(
+            title: "Phân tích AI",
+            diagnosis: result.aiDiagnosis ?? "Không có dữ liệu",
+            color: Colors.blue,
+          ),
+
+// Always show AI Eye Analysis
+          const SizedBox(height: 16),
+          _buildAIAnalysisCard(
+            result.eyeAnalysis ??
+                EyeAnalysisResult(
+                  condition: "Không có dữ liệu",
+                  confidence: 0.0,
+                  riskFactors: [],
+                  recommendations: [],
+                ),
+          ),
+
+
 
           // ✅ thêm chỗ này
           const SizedBox(height: 24),
@@ -502,8 +643,8 @@ class _ResultsScreenState extends State<ResultsScreen> {
     Color scoreColor = result.riskLevel == 'Low'
         ? Colors.green
         : result.riskLevel == 'Medium'
-            ? Colors.orange
-            : Colors.red;
+        ? Colors.orange
+        : Colors.red;
 
     return Card(
       elevation: 4,
@@ -556,8 +697,8 @@ class _ResultsScreenState extends State<ResultsScreen> {
                     result.riskLevel == 'Low'
                         ? Icons.check_circle
                         : result.riskLevel == 'Medium'
-                            ? Icons.warning
-                            : Icons.error,
+                        ? Icons.warning
+                        : Icons.error,
                     size: 16,
                     color: scoreColor,
                   ),
@@ -613,9 +754,41 @@ class _ResultsScreenState extends State<ResultsScreen> {
 
 
   Widget _buildAIAnalysisCard(EyeAnalysisResult eyeAnalysis) {
-    Color conditionColor = eyeAnalysis.condition == 'normal'
-        ? Colors.green
-        : Colors.orange;
+    if (eyeAnalysis.condition == "Unknown") {
+      return Card(
+        elevation: 4,
+        child: Padding(
+          padding: const EdgeInsets.all(16),
+          child: Column(
+            crossAxisAlignment: CrossAxisAlignment.start,
+            children: const [
+              Row(
+                children: [
+                  Icon(Icons.smart_toy, color: Colors.grey, size: 20),
+                  SizedBox(width: 8),
+                  Text(
+                    'AI Eye Analysis',
+                    style: TextStyle(
+                      fontSize: 18,
+                      fontWeight: FontWeight.bold,
+                    ),
+                  ),
+                ],
+              ),
+              SizedBox(height: 16),
+              Text(
+                "Chưa có dữ liệu phân tích mắt từ AI",
+                style: TextStyle(color: Colors.grey, fontSize: 14),
+              ),
+            ],
+          ),
+        ),
+      );
+    }
+
+    // 👉 fallback to your current "normal / abnormal" display
+    Color conditionColor =
+    eyeAnalysis.condition == 'normal' ? Colors.green : Colors.orange;
 
     return Card(
       elevation: 4,
@@ -626,11 +799,7 @@ class _ResultsScreenState extends State<ResultsScreen> {
           children: [
             Row(
               children: [
-                Icon(
-                  Icons.smart_toy,
-                  color: Colors.blue.shade600,
-                  size: 20,
-                ),
+                Icon(Icons.smart_toy, color: Colors.blue.shade600, size: 20),
                 const SizedBox(width: 8),
                 const Text(
                   'AI Eye Analysis',
@@ -647,7 +816,7 @@ class _ResultsScreenState extends State<ResultsScreen> {
               decoration: BoxDecoration(
                 color: conditionColor.withValues(alpha: 0.1),
                 borderRadius: BorderRadius.circular(8),
-                border: Border.all(color: conditionColor.withValues(alpha: 0.3)),
+                border: Border.all(color:  conditionColor.withValues(alpha: 0.3)),
               ),
               child: Row(
                 children: [
@@ -695,17 +864,12 @@ class _ResultsScreenState extends State<ResultsScreen> {
                 child: Row(
                   crossAxisAlignment: CrossAxisAlignment.start,
                   children: [
-                    Icon(
-                      Icons.fiber_manual_record,
-                      size: 8,
-                      color: Colors.grey.shade600,
-                    ),
+                    Icon(Icons.fiber_manual_record,
+                        size: 8, color: Colors.grey.shade600),
                     const SizedBox(width: 8),
                     Expanded(
-                      child: Text(
-                        factor,
-                        style: const TextStyle(fontSize: 13),
-                      ),
+                      child: Text(factor,
+                          style: const TextStyle(fontSize: 13)),
                     ),
                   ],
                 ),
@@ -755,63 +919,63 @@ class _ResultsScreenState extends State<ResultsScreen> {
     );
   }
 
-  // Widget _buildTestDetailsCard() {
-  //   final correctAnswers = widget.testResults.where((result) => result.isCorrect).length;
-  //   final totalQuestions = widget.testResults.length;
-  //   final accuracy = totalQuestions > 0 ? (correctAnswers / totalQuestions * 100).toInt() : 0;
-  //
-  //   return Card(
-  //     elevation: 4,
-  //     child: Padding(
-  //       padding: const EdgeInsets.all(16),
-  //       child: Column(
-  //         crossAxisAlignment: CrossAxisAlignment.start,
-  //         children: [
-  //           const Text(
-  //             'Chi tiết Kiểm tra',
-  //             style: TextStyle(
-  //               fontSize: 18,
-  //               fontWeight: FontWeight.bold,
-  //             ),
-  //           ),
-  //           const SizedBox(height: 12),
-  //           Row(
-  //             mainAxisAlignment: MainAxisAlignment.spaceBetween,
-  //             children: [
-  //               const Text('Độ chính xác:'),
-  //               Text(
-  //                 '$accuracy%',
-  //                 style: const TextStyle(fontWeight: FontWeight.bold),
-  //               ),
-  //             ],
-  //           ),
-  //           const SizedBox(height: 8),
-  //           Row(
-  //             mainAxisAlignment: MainAxisAlignment.spaceBetween,
-  //             children: [
-  //               const Text('Câu trả lời Đúng:'),
-  //               Text(
-  //                 '$correctAnswers/$totalQuestions',
-  //                 style: const TextStyle(fontWeight: FontWeight.bold),
-  //               ),
-  //             ],
-  //           ),
-  //           const SizedBox(height: 8),
-  //           Row(
-  //             mainAxisAlignment: MainAxisAlignment.spaceBetween,
-  //             children: [
-  //               const Text('Thời gian Kiểm tra:'),
-  //               Text(
-  //                 '${DateTime.now().difference(widget.testStartTime).inMinutes} phút',
-  //                 style: const TextStyle(fontWeight: FontWeight.bold),
-  //               ),
-  //             ],
-  //           ),
-  //         ],
-  //       ),
-  //     ),
-  //   );
-  // }
+  Widget _buildTestDetailsCard() {
+    final correctAnswers = widget.testResults.where((result) => result.isCorrect).length;
+    final totalQuestions = widget.testResults.length;
+    final accuracy = totalQuestions > 0 ? (correctAnswers / totalQuestions * 100).toInt() : 0;
+
+    return Card(
+      elevation: 4,
+      child: Padding(
+        padding: const EdgeInsets.all(16),
+        child: Column(
+          crossAxisAlignment: CrossAxisAlignment.start,
+          children: [
+            const Text(
+              'Chi tiết Kiểm tra',
+              style: TextStyle(
+                fontSize: 18,
+                fontWeight: FontWeight.bold,
+              ),
+            ),
+            const SizedBox(height: 12),
+            Row(
+              mainAxisAlignment: MainAxisAlignment.spaceBetween,
+              children: [
+                const Text('Độ chính xác:'),
+                Text(
+                  '$accuracy%',
+                  style: const TextStyle(fontWeight: FontWeight.bold),
+                ),
+              ],
+            ),
+            const SizedBox(height: 8),
+            Row(
+              mainAxisAlignment: MainAxisAlignment.spaceBetween,
+              children: [
+                const Text('Câu trả lời Đúng:'),
+                Text(
+                  '$correctAnswers/$totalQuestions',
+                  style: const TextStyle(fontWeight: FontWeight.bold),
+                ),
+              ],
+            ),
+            const SizedBox(height: 8),
+            Row(
+              mainAxisAlignment: MainAxisAlignment.spaceBetween,
+              children: [
+                const Text('Thời gian Kiểm tra:'),
+                Text(
+                  '${DateTime.now().difference(widget.testStartTime).inMinutes} phút',
+                  style: const TextStyle(fontWeight: FontWeight.bold),
+                ),
+              ],
+            ),
+          ],
+        ),
+      ),
+    );
+  }
 
   Widget _buildActionButtons() {
     return Column(
@@ -881,5 +1045,9 @@ class _ResultsScreenState extends State<ResultsScreen> {
         ],
       ),
     );
+  }
+
+  String _formatDate(DateTime date) {
+    return '${date.day}/${date.month}/${date.year} at ${date.hour}:${date.minute.toString().padLeft(2, '0')}';
   }
 }

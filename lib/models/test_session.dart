@@ -15,7 +15,15 @@ class TestSession {
     required this.sessionId,
     required this.startTime,
   });
+  int get correctAnswers {
+    final allResults = [...snellenResults, ...amslerResults, ...questionnaireResults];
+    return allResults.where((r) => r.isCorrect).length;
+  }
 
+  int get totalQuestions {
+    final allResults = [...snellenResults, ...amslerResults, ...questionnaireResults];
+    return allResults.length;
+  }
   void addSnellenResult(TestResult result) {
     snellenResults.add(result);
   }

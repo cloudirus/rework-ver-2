@@ -401,12 +401,12 @@ class _HomeScreenState extends State<HomeScreen> with WidgetsBindingObserver {
   }
 
   Widget _buildActivityItem(
-    String title,
-    String date,
-    String score,
-    IconData icon,
-    Color color,
-  ) {
+      String title,
+      String date,
+      String score,
+      IconData icon,
+      Color color,
+      ) {
     return Card(
       elevation: 2,
       margin: const EdgeInsets.only(bottom: 8),

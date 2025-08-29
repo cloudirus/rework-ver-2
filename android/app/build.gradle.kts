@@ -30,7 +30,7 @@ android {
         applicationId = "com.desertstorm.desertstorm"
 
         // 👇 Flutter requires minSdk >= 24
-        minSdk = 24
+        minSdk = 26
         targetSdk = 36
 
         versionCode = flutter.versionCode
@@ -56,8 +56,12 @@ flutter {
 }
 
 dependencies {
+    implementation("org.tensorflow:tensorflow-lite:2.15.0")
+// Core TFLite
+    implementation("org.tensorflow:tensorflow-lite-select-tf-ops:2.15.0")
     // TensorFlow Lite GPU
     implementation("org.tensorflow:tensorflow-lite-gpu-api:+")
+    implementation("org.tensorflow:tensorflow-lite-gpu:2.15.0")
 
     // ✅ Updated desugaring libs required by flutter_local_notifications
     coreLibraryDesugaring("com.android.tools:desugar_jdk_libs:2.1.4")

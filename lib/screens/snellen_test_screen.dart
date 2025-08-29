@@ -9,14 +9,13 @@ import '../widgets/app_header.dart';
 import '../services/camera_service.dart';
 
 class SnellenTestScreen extends StatefulWidget {
-    const SnellenTestScreen({super.key});
+  const SnellenTestScreen({super.key});
 
-    @override
-    State<SnellenTestScreen> createState() => _SnellenTestScreenState();
+  @override
+  State<SnellenTestScreen> createState() => _SnellenTestScreenState();
 }
 
 class _SnellenTestScreenState extends State<SnellenTestScreen> {
-  CameraController? _cameraController;
   bool _isCameraInitialized = false;
   bool _isTestActive = false;
   int _currentLine = 0;
@@ -26,7 +25,12 @@ class _SnellenTestScreenState extends State<SnellenTestScreen> {
   DateTime? _testStartTime;
   final TestSessionManager _sessionManager = TestSessionManager();
   final CameraService _cameraService = CameraService();
-  
+
+
+
+
+
+
   final List<List<String>> _snellenChart = [
     ['E'], // 20/200
     ['F', 'P'], // 20/100
@@ -39,65 +43,84 @@ class _SnellenTestScreenState extends State<SnellenTestScreen> {
   ];
 
   final List<String> _visionLevels = [
-    '20/200', '20/100', '20/70', '20/50', 
+    '20/200', '20/100', '20/70', '20/50',
     '20/40', '20/30', '20/25', '20/20'
   ];
 
   @override
   void initState() {
     super.initState();
-    _initializeCamera();
   }
 
-  Future<void> _initializeCamera() async {
-    if (cameras.isNotEmpty) {
-      CameraDescription? frontCamera;
-      for (final camera in cameras) {
-        if (camera.lensDirection == CameraLensDirection.front) {
-          frontCamera = camera;
-          break;
-        }
-      }
-      
-      _cameraController = CameraController(
-        frontCamera ?? cameras.first, // Use front camera if available, otherwise fallback to first camera
-        ResolutionPreset.medium,
-      );
-      
-      try {
-        await _cameraController!.initialize();
-        setState(() {
-          _isCameraInitialized = true;
-        });
-      } catch (e) {
-        print('Error initializing camera: $e');
-      }
-    }
+  Future<void> _initCamera() async {
+    print("📷 Camera initializing...");
+    final cameras = await availableCameras();
+    final frontCamera = cameras.firstWhere(
+          (cam) => cam.lensDirection == CameraLensDirection.front,
+    );
+
+    await _cameraService.startCamera(frontCamera);
+    setState(() {
+      _isCameraInitialized = true;
+    });
   }
+
+
+
+  // Future<void> _initializeCamera() async {
+  //   if (cameras.isNotEmpty) {
+  //     CameraDescription? frontCamera;
+  //     for (final camera in cameras) {
+  //       if (camera.lensDirection == CameraLensDirection.front) {
+  //         frontCamera = camera;
+  //         break;
+  //       }
+  //     }
+  //
+  //     _cameraController = CameraController(
+  //       frontCamera ?? cameras.first, // Use front camera if available, otherwise fallback to first camera
+  //       ResolutionPreset.medium,
+  //     );
+  //
+  //     try {
+  //       await _cameraController!.initialize();
+  //       setState(() {
+  //         _isCameraInitialized = true;
+  //       });
+  //     } catch (e) {
+  //       print('Error initializing camera: $e');
+  //     }
+  //   }
+  // }
 
   @override
   void dispose() {
-    _cameraController?.dispose();
+    _cameraService.stopCamera();
     super.dispose();
   }
 
-  void _startTest() {
+
+
+  void _startTest() async {
     _sessionManager.startNewSession();
     setState(() {
       _isTestActive = true;
       _currentLine = 0;
       _testStartTime = DateTime.now();
     });
-    
-    // Start AI analysis
+
+    await _initCamera();
     _startAIAnalysis();
     _showNextLetter();
   }
 
-  void _startAIAnalysis() async {
-    if (_cameraController != null && _cameraController!.value.isInitialized) {
-      // Start periodic eye capture for AI analysis
-      _cameraService.startPeriodicCapture(_cameraController!, 'Snellen Test');
+  void _startAIAnalysis() {
+    if (_cameraService.controller != null &&
+        _cameraService.controller!.value.isInitialized) {
+      _cameraService.startPeriodicCapture(
+        _cameraService.controller!,
+        'Snellen Test',
+      );
     }
   }
 
@@ -123,14 +146,14 @@ class _SnellenTestScreenState extends State<SnellenTestScreen> {
       isCorrect: isCorrect,
       timestamp: DateTime.now(),
     );
-    
+
     _testResults.add(result);
     _sessionManager.addSnellenResult(result);
 
     setState(() {
       _currentLine++;
     });
-    
+
     if (_currentLine < _snellenChart.length) {
       _showNextLetter();
     } else {
@@ -142,10 +165,10 @@ class _SnellenTestScreenState extends State<SnellenTestScreen> {
     setState(() {
       _isTestActive = false;
     });
-    
+
     // Analyze captured eye images
     await _cameraService.analyzeAllCapturedImages();
-    
+
     Navigator.push(
       context,
       MaterialPageRoute(
@@ -163,9 +186,13 @@ class _SnellenTestScreenState extends State<SnellenTestScreen> {
       ),
       body: Column(
         children: [
-          if (_isCameraInitialized) 
-            CameraPreviewWidget(controller: _cameraController!),
-          
+          if (_isCameraInitialized &&
+              _cameraService.controller != null &&
+              _cameraService.controller!.value.isInitialized)
+            CameraPreviewWidget(cameraService: _cameraService)
+          ,
+
+
           Expanded(
             child: Container(
               padding: const EdgeInsets.all(16),
@@ -303,7 +330,7 @@ class _SnellenTestScreenState extends State<SnellenTestScreen> {
             ),
           ),
           const SizedBox(height: 32),
-          
+
           Container(
             width: double.infinity,
             constraints: const BoxConstraints(maxWidth: 300, maxHeight: 300),
@@ -336,17 +363,17 @@ class _SnellenTestScreenState extends State<SnellenTestScreen> {
               ),
             ),
           ),
-          
+
           const SizedBox(height: 32),
-          
+
           const Text(
             'Bạn thấy chữ cái nào?',
             style: TextStyle(fontSize: 18, fontWeight: FontWeight.w600),
             textAlign: TextAlign.center,
           ),
-          
+
           const SizedBox(height: 20),
-          
+
           // Letter buttons in a grid layout for better mobile experience
           Container(
             constraints: const BoxConstraints(maxWidth: 400),

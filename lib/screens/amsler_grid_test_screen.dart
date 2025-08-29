@@ -26,17 +26,17 @@ class _AmslerGridTestScreenState extends State<AmslerGridTestScreen> {
   final List<TestResult> _testResults = [];
   final TestSessionManager _sessionManager = TestSessionManager();
   final CameraService _cameraService = CameraService();
-  
+
   String _currentEye = 'right';
   final List<Offset> _distortionPoints = [];
   final List<Offset> _blurPoints = [];
   final List<Offset> _missingPoints = [];
-  
+
   Timer? _eyeTimer;
   int _remainingTime = 30;
-  
+
   final Map<String, dynamic> _questionnaireResponses = {};
-  
+
   @override
   void initState() {
     super.initState();
@@ -52,12 +52,12 @@ class _AmslerGridTestScreenState extends State<AmslerGridTestScreen> {
           break;
         }
       }
-      
+
       _cameraController = CameraController(
         frontCamera ?? cameras.first, // Use front camera if available, otherwise fallback to first camera
         ResolutionPreset.medium,
       );
-      
+
       try {
         await _cameraController!.initialize();
         setState(() {
@@ -87,10 +87,10 @@ class _AmslerGridTestScreenState extends State<AmslerGridTestScreen> {
       _questionnaireResponses.clear();
       _remainingTime = 30;
     });
-    
+
     // Start AI analysis for Amsler Grid
     _startAIAnalysis();
-    
+
     // Start timer for eye test
     _startEyeTimer();
   }
@@ -105,12 +105,12 @@ class _AmslerGridTestScreenState extends State<AmslerGridTestScreen> {
   void _startEyeTimer() {
     _eyeTimer?.cancel();
     _remainingTime = 30;
-    
+
     _eyeTimer = Timer.periodic(const Duration(seconds: 1), (timer) {
       setState(() {
         _remainingTime--;
       });
-      
+
       if (_remainingTime <= 0) {
         timer.cancel();
         _autoSwitchEye();
@@ -149,14 +149,19 @@ class _AmslerGridTestScreenState extends State<AmslerGridTestScreen> {
     }
   }
 
-  void _completeGridTest() {
+  void _completeGridTest() async {
     _eyeTimer?.cancel();
+    CameraService().stopCapture(); // stop periodic images
+    await CameraService().stopCamera(); // release hardware
+
     setState(() {
       _isTestActive = false;
       _testCompleted = true;
       _showQuestionnaire = true;
     });
   }
+
+
 
   void _completeQuestionnaire() {
     final result = TestResult(
@@ -166,10 +171,10 @@ class _AmslerGridTestScreenState extends State<AmslerGridTestScreen> {
       isCorrect: _distortionPoints.isEmpty && _blurPoints.isEmpty && _missingPoints.isEmpty,
       timestamp: DateTime.now(),
     );
-    
+
     _testResults.add(result);
     _sessionManager.addAmslerResult(result);
-    
+
     final session = _sessionManager.getCurrentSession();
     if (session != null) {
       Navigator.push(
@@ -183,15 +188,15 @@ class _AmslerGridTestScreenState extends State<AmslerGridTestScreen> {
 
   String _generateResponseSummary() {
     final responses = <String>[];
-    
+
     responses.add('Distortion Points: ${_distortionPoints.length}');
     responses.add('Blur Points: ${_blurPoints.length}');
     responses.add('Missing Points: ${_missingPoints.length}');
-    
+
     _questionnaireResponses.forEach((key, value) {
       responses.add('$key: $value');
     });
-    
+
     return responses.join(', ');
   }
 
@@ -207,6 +212,7 @@ class _AmslerGridTestScreenState extends State<AmslerGridTestScreen> {
               _showQuestionnaire = false;
               _testCompleted = false;
               _isTestActive = true;
+
             });
           } else {
             Navigator.pop(context);
@@ -215,17 +221,22 @@ class _AmslerGridTestScreenState extends State<AmslerGridTestScreen> {
       ),
       body: Column(
         children: [
-          if (_isCameraInitialized && !_showQuestionnaire) 
-            CameraPreviewWidget(controller: _cameraController!),
-          
+          if (_cameraController != null &&
+              _cameraController!.value.isInitialized &&
+              !_showQuestionnaire)
+            CameraPreviewWidget(cameraService: _cameraService),
+
+
+
+
           Expanded(
             child: Container(
               padding: const EdgeInsets.all(16),
-              child: _showQuestionnaire 
+              child: _showQuestionnaire
                   ? _buildQuestionnaire()
-                  : _isTestActive 
-                      ? _buildTestInterface() 
-                      : _buildInstructions(),
+                  : _isTestActive
+                  ? _buildTestInterface()
+                  : _buildInstructions(),
             ),
           ),
         ],
@@ -379,7 +390,7 @@ class _AmslerGridTestScreenState extends State<AmslerGridTestScreen> {
             ),
           ),
           const SizedBox(height: 20),
-          
+
           Container(
             width: double.infinity,
             constraints: const BoxConstraints(maxWidth: 350),
@@ -406,9 +417,9 @@ class _AmslerGridTestScreenState extends State<AmslerGridTestScreen> {
               ),
             ),
           ),
-          
+
           const SizedBox(height: 20),
-          
+
           Row(
             children: [
               Expanded(
@@ -471,45 +482,45 @@ class _AmslerGridTestScreenState extends State<AmslerGridTestScreen> {
             textAlign: TextAlign.center,
           ),
           const SizedBox(height: 24),
-          
+
           _buildQuestionCard(
             'Bạn có nhận thấy đường cong hoặc biến dạng không?',
             'wavy_lines',
             ['Có', 'Không', 'Không chắc chắn'],
           ),
-          
+
           _buildQuestionCard(
             'Có vùng nào mờ hoặc không rõ không?',
             'blurred_areas',
             ['Có', 'Không', 'Không chắc chắn'],
           ),
-          
+
           _buildQuestionCard(
             'Bạn có thấy điểm thiếu hoặc điểm tối không?',
             'missing_spots',
             ['Có', 'Không', 'Không chắc chắn'],
           ),
-          
+
           _buildQuestionCard(
             'Các đường lưới có thẳng và cách đều không?',
             'straight_lines',
             ['Có', 'Không', 'Một số vùng biến dạng'],
           ),
-          
+
           _buildQuestionCard(
             'Chấm đỏ ở giữa rõ đến mức nào?',
             'central_dot',
             ['Rất rõ', 'Khá rõ', 'Mờ', 'Không thấy'],
           ),
-          
+
           _buildQuestionCard(
             'Bạn có gặp khó khăn tập trung không?',
             'focus_difficulty',
             ['Không', 'Nhẹ', 'Vừa', 'Nghiêm trọng'],
           ),
-          
+
           const SizedBox(height: 32),
-          
+
           SizedBox(
             width: double.infinity,
             child: ElevatedButton(
@@ -528,9 +539,9 @@ class _AmslerGridTestScreenState extends State<AmslerGridTestScreen> {
               ),
             ),
           ),
-          
+
           const SizedBox(height: 16),
-          
+
           if (!_allQuestionsAnswered())
             const Text(
               'Vui lòng trả lời tất cả câu hỏi để hoàn thành kiểm tra.',
@@ -588,9 +599,9 @@ class _AmslerGridTestScreenState extends State<AmslerGridTestScreen> {
       'central_dot',
       'focus_difficulty',
     ];
-    
-    return requiredQuestions.every((question) => 
-        _questionnaireResponses.containsKey(question) && 
+
+    return requiredQuestions.every((question) =>
+    _questionnaireResponses.containsKey(question) &&
         _questionnaireResponses[question] != null
     );
   }
