@@ -82,8 +82,9 @@ flutter:
   assets:
     - assets/translations/vi.json
     - assets/translations/en.json
-    - assets/models/eye_effnet_fp16.tflite
+    - assets/models/eye_effnet_fp32.tflite
     - assets/models/outer_eye_effnet.tflite
+    - assets/models/eye_effnet_fp16.tflite
     - assets/questions.json
 
   # An image asset can refer to one or more resolution-specific "variants", see
