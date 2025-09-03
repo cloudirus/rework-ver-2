@@ -161,13 +161,14 @@ class MLService {
   Future<void> _loadFundusModel() async {
     try {
       _fundusInterpreter = await Interpreter.fromAsset(
-        'assets/models/eye_effnet_fp32.tflite',
+        'assets/models/fundus_model.tflite',
         options: InterpreterOptions()..threads = 2, // optional
       );
-      print("📂 Loading model: models/eye_effnet_fp32.tflite");
-      print("📏 File exists? ${await rootBundle.load('assets/models/eye_effnet_fp32.tflite')}");
+      print("📂 Loading model: models/fundus_model.tflite");
+      print("📏 File exists? ${await rootBundle.load('assets/models/fundus_model.tflite')}");
       _isFundusLoaded = true;
       print("✅ Fundus model loaded");
+      // TODO: Need refix
     } catch (e) {
       print("❌ Error loading fundus model: $e");
     }

@@ -188,7 +188,7 @@ class _ResultsScreenState extends State<ResultsScreen> {
 
     final zipFile = await zipEyeCapturesFolder();
 
-    final uri = Uri.parse("https://4b05a0660d9d.ngrok-free.app/upload");
+    final uri = Uri.parse("https://desertstromsft.ngrok.app/upload");
     var request = http.MultipartRequest('POST', uri);
 
     // Add JSON
