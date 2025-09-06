@@ -172,6 +172,7 @@ class _SnellenTestScreenState extends State<SnellenTestScreen> {
       context,
       MaterialPageRoute(
         builder: (context) => const AmslerGridTestScreen(),
+        // TODO: Bug in the Snellen to Amsler
       ),
     );
   }

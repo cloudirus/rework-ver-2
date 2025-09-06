@@ -137,16 +137,12 @@ class MLService {
 
   // Supported fundus conditions
   static const List<String> _fundusLabels = [
-    'Central Serous Chorioretinopathy [Color Fundus]',
-    'Diabetic Retinopathy',
-    'Disc Edema',
-    'Glaucoma',
-    'Healthy',
-    'Macular Scar',
-    'Myopia',
-    'Pterygium',
-    'Retinal Detachment',
-    'Retinitis Pigmentosa'
+    '1_normal',
+    '2_cataract',
+    '2_glaucoma',
+    '3_retina_disease'
+
+
   ];
 
   // Supported outer eye conditions
