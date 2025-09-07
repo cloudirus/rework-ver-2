@@ -175,6 +175,7 @@ class _SnellenTestScreenState extends State<SnellenTestScreen> {
         // TODO: Bug in the Snellen to Amsler
       ),
     );
+    print("LOG: Switched to Amsler");
   }
 
   @override

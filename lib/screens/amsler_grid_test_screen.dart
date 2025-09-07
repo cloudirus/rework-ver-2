@@ -39,6 +39,7 @@ class _AmslerGridTestScreenState extends State<AmslerGridTestScreen> {
 
   @override
   void initState() {
+    print("LOG: Amsler has started");
     super.initState();
     _initializeCamera();
   }

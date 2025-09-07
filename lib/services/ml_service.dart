@@ -164,7 +164,6 @@ class MLService {
       print("📏 File exists? ${await rootBundle.load('assets/models/fundus_model.tflite')}");
       _isFundusLoaded = true;
       print("✅ Fundus model loaded");
-      // TODO: Need refix
     } catch (e) {
       print("❌ Error loading fundus model: $e");
     }
