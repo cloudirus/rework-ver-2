@@ -22,12 +22,12 @@
       <root url="file://$USER_HOME$/AppData/Local/Pub/Cache/hosted/pub.dev/shared_preferences_android-2.4.12" />
       <root url="file://$USER_HOME$/AppData/Local/Pub/Cache/hosted/pub.dev/camera_android_camerax-0.6.21" />
       <root url="file://$USER_HOME$/AppData/Local/Pub/Cache/hosted/pub.dev/cloud_firestore_web-5.0.1" />
-      <root url="file://$USER_HOME$/AppData/Local/Pub/Cache/hosted/pub.dev/cloud_firestore-6.0.1" />
-      <root url="file://$USER_HOME$/AppData/Local/Pub/Cache/hosted/pub.dev/firebase_auth_web-6.0.2" />
       <root url="file://$USER_HOME$/AppData/Local/Pub/Cache/hosted/pub.dev/camera_avfoundation-0.9.21+2" />
+      <root url="file://$USER_HOME$/AppData/Local/Pub/Cache/hosted/pub.dev/firebase_core-4.1.0" />
       <root url="file://$USER_HOME$/AppData/Local/Pub/Cache/hosted/pub.dev/firebase_auth-6.0.2" />
       <root url="file://$USER_HOME$/AppData/Local/Pub/Cache/hosted/pub.dev/firebase_core_web-3.1.0" />
-      <root url="file://$USER_HOME$/AppData/Local/Pub/Cache/hosted/pub.dev/firebase_core-4.1.0" />
+      <root url="file://$USER_HOME$/AppData/Local/Pub/Cache/hosted/pub.dev/firebase_auth_web-6.0.2" />
+      <root url="file://$USER_HOME$/AppData/Local/Pub/Cache/hosted/pub.dev/cloud_firestore-6.0.1" />
     </CLASSES>
     <JAVADOC />
     <SOURCES />

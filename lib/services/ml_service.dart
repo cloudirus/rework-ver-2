@@ -379,6 +379,7 @@ class MLService {
       default:
         recs.add("Maintain regular eye checkups.");
     }
+    print("Recommended actions: $recs");
     return recs;
   }
 
@@ -413,11 +414,11 @@ class MLService {
     final riskLevel = _determineRiskLevel(score);
     final diagnosis = _generateDiagnosis(score);
     final recs = _generateVisionRecommendations(score, eyeAnalysis);
-    String? aiDiagnosis;
-    if (eyeAnalysis != null) {
-      aiDiagnosis = "Detected: ${eyeAnalysis.condition.replaceAll('_', ' ').toUpperCase()} "
-          "(Confidence: ${(eyeAnalysis.confidence * 100).toInt()}%)";
-    }
+    final aiDiagnosis = (eyeAnalysis != null)
+        ? "Detected: ${eyeAnalysis.condition.replaceAll('_', ' ').toUpperCase()} "
+        "(Confidence: ${(eyeAnalysis.confidence * 100).toInt()}%)"
+        : "Không có dữ liệu AI";
+
     return VisionAnalysisResult(
       visionScore: score,
       riskLevel: riskLevel,

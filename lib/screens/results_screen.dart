@@ -287,6 +287,11 @@ class _ResultsScreenState extends State<ResultsScreen> {
         final eyeTrackingData = _cameraService.generateEyeTrackingData();
         print("👁️ Eye tracking data: $eyeTrackingData");
 
+        print("📂 Checking eye frame files...");
+        for (final path in capturedPaths) {
+          print("   ${await File(path).exists() ? "✅ Found" : "❌ Missing"} $path");
+        }
+
         // 🔹 Only analyze images from eye_frames
         EyeAnalysisResult? eyeAnalysis;
         for (final imagePath in capturedPaths) {
@@ -319,6 +324,10 @@ class _ResultsScreenState extends State<ResultsScreen> {
             eyeAnalysis: eyeAnalysis,
           );
           print("✅ ML Analysis (with eye_frames): ${mlResult.diagnosis}");
+         // print("✅ Test Diagnosis: ${mlResult.diagnosis}");
+          print("🤖 AI Diagnosis: ${mlResult.aiDiagnosis}");
+          print("📌 Source: ${mlResult.source}");
+
         } catch (e) {
           print("❌ ML Analysis failed: $e");
         }
