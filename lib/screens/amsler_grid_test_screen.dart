@@ -453,7 +453,7 @@ class _AmslerGridTestScreenState extends State<AmslerGridTestScreen> {
                       borderRadius: BorderRadius.circular(8),
                     ),
                   ),
-                  child: Text(_currentEye == 'right' ? 'Tiếp tục Mắt Trái' : 'Hoàn thành Kiểm tra'),
+                  child: Text(_currentEye == 'right' ? 'Tiếp tục Mắt Trái' : 'Tiếp tục'),
                 ),
               ),
             ],
@@ -535,7 +535,7 @@ class _AmslerGridTestScreenState extends State<AmslerGridTestScreen> {
                 ),
               ),
               child: const Text(
-                'Hoàn thành Kiểm tra',
+                'Tiếp tục Kiểm tra',
                 style: TextStyle(fontSize: 18),
               ),
             ),
@@ -545,7 +545,7 @@ class _AmslerGridTestScreenState extends State<AmslerGridTestScreen> {
 
           if (!_allQuestionsAnswered())
             const Text(
-              'Vui lòng trả lời tất cả câu hỏi để hoàn thành kiểm tra.',
+              'Vui lòng trả lời tất cả câu hỏi để tiếp tục kiểm tra.',
               style: TextStyle(
                 color: Colors.orange,
                 fontSize: 14,

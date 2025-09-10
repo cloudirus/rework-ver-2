@@ -98,98 +98,99 @@ class _CameraPreviewWidgetState extends State<CameraPreviewWidget> {
   Widget build(BuildContext context) {
     final controller = widget.cameraService.controller;
 
-    return SizedBox(
-      height: 140,
-      width: double.infinity,
-      child: (controller != null && controller.value.isInitialized)
-          ? Stack(
-        children: [
-          ClipRRect(
-            borderRadius: BorderRadius.circular(8),
-            child: CameraPreview(controller),
-          ),
-          // Frames counter
-          Positioned(
-            bottom: 8,
-            left: 8,
-            child: Container(
-              padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 4),
-              decoration: BoxDecoration(
-                color: Colors.black54,
-                borderRadius: BorderRadius.circular(4),
-              ),
-              child: Text(
-                'Frames: ${_capturedImages.length}',
-                style: const TextStyle(
-                  color: Colors.white,
-                  fontSize: 12,
-                ),
-              ),
-            ),
-          ),
-          // Eye overlay
-          Positioned.fill(
-            child: CustomPaint(
-              painter: EyeTrackingOverlayPainter(_faces),
-            ),
-          ),
-        ],
-      )
-          : const Center(
-        child: CircularProgressIndicator(),
-      ),
-    );
+    // return SizedBox(
+    //   height: 140,
+    //   width: double.infinity,
+    //   child: (controller != null && controller.value.isInitialized)
+    //       ? Stack(
+    //     children: [
+    //       ClipRRect(
+    //         borderRadius: BorderRadius.circular(8),
+    //         child: CameraPreview(controller),
+    //       ),
+    //       // Frames counter
+    //       Positioned(
+    //         bottom: 8,
+    //         left: 8,
+    //         child: Container(
+    //           padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 4),
+    //           decoration: BoxDecoration(
+    //             color: Colors.black54,
+    //             borderRadius: BorderRadius.circular(4),
+    //           ),
+    //           child: Text(
+    //             'Frames: ${_capturedImages.length}',
+    //             style: const TextStyle(
+    //               color: Colors.white,
+    //               fontSize: 12,
+    //             ),
+    //           ),
+    //         ),
+    //       ),
+    //       // Eye overlay
+    //       // Positioned.fill(
+    //       //   child: CustomPaint(
+    //       //     painter: EyeTrackingOverlayPainter(_faces),
+    //       //   ),
+    //       // ),
+    //     ],
+    //   )
+    //       : const Center(
+    //     child: CircularProgressIndicator(),
+    //   ),
+    // );
+    return const SizedBox.shrink();
   }
 }
 
-class EyeTrackingOverlayPainter extends CustomPainter {
-  final List<Face> faces;
-
-  EyeTrackingOverlayPainter(this.faces);
-
-  @override
-  void paint(Canvas canvas, Size size) {
-    final paintEye = Paint()
-      ..color = Colors.green
-      ..style = PaintingStyle.stroke
-      ..strokeWidth = 2;
-
-    final paintPupil = Paint()
-      ..color = Colors.red
-      ..style = PaintingStyle.fill;
-
-    for (var face in faces) {
-      final leftEye = face.landmarks[FaceLandmarkType.leftEye];
-      final rightEye = face.landmarks[FaceLandmarkType.rightEye];
-
-      if (leftEye != null) {
-        canvas.drawCircle(
-          Offset(leftEye.position.x.toDouble(), leftEye.position.y.toDouble()),
-          8,
-          paintEye,
-        );
-        canvas.drawCircle(
-          Offset(leftEye.position.x.toDouble(), leftEye.position.y.toDouble()),
-          3,
-          paintPupil,
-        );
-      }
-      if (rightEye != null) {
-        canvas.drawCircle(
-          Offset(rightEye.position.x.toDouble(), rightEye.position.y.toDouble()),
-          8,
-          paintEye,
-        );
-        canvas.drawCircle(
-          Offset(rightEye.position.x.toDouble(), rightEye.position.y.toDouble()),
-          3,
-          paintPupil,
-        );
-      }
-    }
-  }
-
-  @override
-  bool shouldRepaint(covariant EyeTrackingOverlayPainter oldDelegate) =>
-      oldDelegate.faces != faces;
-}
+// class EyeTrackingOverlayPainter extends CustomPainter {
+//   final List<Face> faces;
+//
+//   EyeTrackingOverlayPainter(this.faces);
+//
+//   @override
+//   void paint(Canvas canvas, Size size) {
+//     final paintEye = Paint()
+//       ..color = Colors.green
+//       ..style = PaintingStyle.stroke
+//       ..strokeWidth = 2;
+//
+//     final paintPupil = Paint()
+//       ..color = Colors.red
+//       ..style = PaintingStyle.fill;
+//
+//     for (var face in faces) {
+//       final leftEye = face.landmarks[FaceLandmarkType.leftEye];
+//       final rightEye = face.landmarks[FaceLandmarkType.rightEye];
+//
+//       if (leftEye != null) {
+//         canvas.drawCircle(
+//           Offset(leftEye.position.x.toDouble(), leftEye.position.y.toDouble()),
+//           8,
+//           paintEye,
+//         );
+//         canvas.drawCircle(
+//           Offset(leftEye.position.x.toDouble(), leftEye.position.y.toDouble()),
+//           3,
+//           paintPupil,
+//         );
+//       }
+//       if (rightEye != null) {
+//         canvas.drawCircle(
+//           Offset(rightEye.position.x.toDouble(), rightEye.position.y.toDouble()),
+//           8,
+//           paintEye,
+//         );
+//         canvas.drawCircle(
+//           Offset(rightEye.position.x.toDouble(), rightEye.position.y.toDouble()),
+//           3,
+//           paintPupil,
+//         );
+//       }
+//     }
+//   }
+//
+//   @override
+//   bool shouldRepaint(covariant EyeTrackingOverlayPainter oldDelegate) =>
+//       oldDelegate.faces != faces;
+// }

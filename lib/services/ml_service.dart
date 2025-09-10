@@ -304,6 +304,8 @@ class MLService {
     final riskFactors = _generateRiskFactors(predictedCondition);
     final recommendations =
     _generateRecommendations(predictedCondition, confidence);
+    print("Confidence: $confidence");
+    print("Predicted condition: $predictedCondition");
 
     return EyeAnalysisResult(
       condition: predictedCondition,

@@ -584,7 +584,7 @@ class _ResultsScreenState extends State<ResultsScreen> {
           const SizedBox(height: 24),
           _buildDiagnosisCard(
             title: "Phân tích AI",
-            diagnosis: result.aiDiagnosis ?? "Không có dữ liệu",
+            diagnosis: result.aiDiagnosis ?? "Lỗi phân tích. Vui lòng thử lại sau.",
             color: Colors.blue,
           ),
 
@@ -593,7 +593,7 @@ class _ResultsScreenState extends State<ResultsScreen> {
           _buildAIAnalysisCard(
             result.eyeAnalysis ??
                 EyeAnalysisResult(
-                  condition: "Không có dữ liệu",
+                  condition: "Lỗi phân tích. Vui lòng thử lại sau.",
                   confidence: 0.0,
                   riskFactors: [],
                   recommendations: [],

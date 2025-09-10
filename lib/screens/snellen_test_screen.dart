@@ -14,6 +14,32 @@ class SnellenTestScreen extends StatefulWidget {
   State<SnellenTestScreen> createState() => _SnellenTestScreenState();
 }
 
+class LoadingScreen extends StatelessWidget {
+  final String message;
+  const LoadingScreen({super.key, this.message = "Processing, please wait..."});
+
+  @override
+  Widget build(BuildContext context) {
+    return Scaffold(
+      body: Center(
+        child: Column(
+          mainAxisSize: MainAxisSize.min,
+          children: [
+            const CircularProgressIndicator(),
+            const SizedBox(height: 20),
+            Text(
+              message,
+              style: const TextStyle(fontSize: 16),
+              textAlign: TextAlign.center,
+            ),
+          ],
+        ),
+      ),
+    );
+  }
+}
+
+
 class _SnellenTestScreenState extends State<SnellenTestScreen> {
   bool _isCameraInitialized = false;
   bool _isTestActive = false;
@@ -165,18 +191,34 @@ class _SnellenTestScreenState extends State<SnellenTestScreen> {
       _isTestActive = false;
     });
 
-    // Analyze captured eye images
-    await _cameraService.analyzeAllCapturedImages();
-
-    Navigator.push(
-      context,
+    // Push full-screen loading
+    Navigator.of(context, rootNavigator: true).push(
       MaterialPageRoute(
-        builder: (context) => const AmslerGridTestScreen(),
-        // TODO: Bug in the Snellen to Amsler
+        builder: (_) => const LoadingScreen(),
       ),
     );
-    print("LOG: Switched to Amsler");
+
+    try {
+      // Run analysis
+      await _cameraService.analyzeAllCapturedImages();
+
+      // Replace loading with Amsler Grid screen
+      if (context.mounted) {
+        Navigator.of(context, rootNavigator: true).pushReplacement(
+          MaterialPageRoute(builder: (_) => const AmslerGridTestScreen()),
+        );
+      }
+
+      print("LOG: Switched to Amsler");
+    } catch (e) {
+      // If something fails, close loading screen
+      if (context.mounted) {
+        Navigator.of(context, rootNavigator: true).pop();
+      }
+      print("Error during analysis: $e");
+    }
   }
+
 
   @override
   Widget build(BuildContext context) {
@@ -244,6 +286,7 @@ class _SnellenTestScreenState extends State<SnellenTestScreen> {
                   ),
                 ),
                 const SizedBox(height: 12),
+                _buildInstructionItem('Đảm bảo môi trường có đủ ánh sáng'),
                 _buildInstructionItem('Giữ thiết bị cách mắt ~40 cm (một cánh tay)'),
                 _buildInstructionItem('Che một mắt bằng tay'),
                 _buildInstructionItem('Chọn các chữ cái hiển thị trên màn hình'),
