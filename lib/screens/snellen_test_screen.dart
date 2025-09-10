@@ -14,32 +14,6 @@ class SnellenTestScreen extends StatefulWidget {
   State<SnellenTestScreen> createState() => _SnellenTestScreenState();
 }
 
-class LoadingScreen extends StatelessWidget {
-  final String message;
-  const LoadingScreen({super.key, this.message = "Processing, please wait..."});
-
-  @override
-  Widget build(BuildContext context) {
-    return Scaffold(
-      body: Center(
-        child: Column(
-          mainAxisSize: MainAxisSize.min,
-          children: [
-            const CircularProgressIndicator(),
-            const SizedBox(height: 20),
-            Text(
-              message,
-              style: const TextStyle(fontSize: 16),
-              textAlign: TextAlign.center,
-            ),
-          ],
-        ),
-      ),
-    );
-  }
-}
-
-
 class _SnellenTestScreenState extends State<SnellenTestScreen> {
   bool _isCameraInitialized = false;
   bool _isTestActive = false;
@@ -50,11 +24,6 @@ class _SnellenTestScreenState extends State<SnellenTestScreen> {
   DateTime? _testStartTime;
   final TestSessionManager _sessionManager = TestSessionManager();
   final CameraService _cameraService = CameraService();
-
-
-
-
-
 
   final List<List<String>> _snellenChart = [
     ['E'], // 20/200
@@ -191,32 +160,13 @@ class _SnellenTestScreenState extends State<SnellenTestScreen> {
       _isTestActive = false;
     });
 
-    // Push full-screen loading
-    Navigator.of(context, rootNavigator: true).push(
-      MaterialPageRoute(
-        builder: (_) => const LoadingScreen(),
-      ),
+    _cameraService.analyzeAllCapturedImages();
+
+    Navigator.of(context, rootNavigator: true).pushReplacement(
+      MaterialPageRoute(builder: (_) => const AmslerGridTestScreen()),
     );
 
-    try {
-      // Run analysis
-      await _cameraService.analyzeAllCapturedImages();
-
-      // Replace loading with Amsler Grid screen
-      if (context.mounted) {
-        Navigator.of(context, rootNavigator: true).pushReplacement(
-          MaterialPageRoute(builder: (_) => const AmslerGridTestScreen()),
-        );
-      }
-
-      print("LOG: Switched to Amsler");
-    } catch (e) {
-      // If something fails, close loading screen
-      if (context.mounted) {
-        Navigator.of(context, rootNavigator: true).pop();
-      }
-      print("Error during analysis: $e");
-    }
+    print("LOG: Switched to Amsler");
   }
 
 
