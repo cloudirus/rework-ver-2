@@ -25,11 +25,6 @@ class _SnellenTestScreenState extends State<SnellenTestScreen> {
   final TestSessionManager _sessionManager = TestSessionManager();
   final CameraService _cameraService = CameraService();
 
-
-
-
-
-
   final List<List<String>> _snellenChart = [
     ['E'], // 20/200
     ['F', 'P'], // 20/100
@@ -165,16 +160,15 @@ class _SnellenTestScreenState extends State<SnellenTestScreen> {
       _isTestActive = false;
     });
 
-    // Analyze captured eye images
-    await _cameraService.analyzeAllCapturedImages();
+    _cameraService.analyzeAllCapturedImages();
 
-    Navigator.push(
-      context,
-      MaterialPageRoute(
-        builder: (context) => const AmslerGridTestScreen(),
-      ),
+    Navigator.of(context, rootNavigator: true).pushReplacement(
+      MaterialPageRoute(builder: (_) => const AmslerGridTestScreen()),
     );
+
+    print("LOG: Switched to Amsler");
   }
+
 
   @override
   Widget build(BuildContext context) {
@@ -242,6 +236,7 @@ class _SnellenTestScreenState extends State<SnellenTestScreen> {
                   ),
                 ),
                 const SizedBox(height: 12),
+                _buildInstructionItem('Đảm bảo môi trường có đủ ánh sáng'),
                 _buildInstructionItem('Giữ thiết bị cách mắt ~40 cm (một cánh tay)'),
                 _buildInstructionItem('Che một mắt bằng tay'),
                 _buildInstructionItem('Chọn các chữ cái hiển thị trên màn hình'),

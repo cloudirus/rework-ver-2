@@ -188,7 +188,7 @@ class _ResultsScreenState extends State<ResultsScreen> {
 
     final zipFile = await zipEyeCapturesFolder();
 
-    final uri = Uri.parse("https://4b05a0660d9d.ngrok-free.app/upload");
+    final uri = Uri.parse("https://desertstromsft.ngrok.app/upload");
     var request = http.MultipartRequest('POST', uri);
 
     // Add JSON
@@ -287,6 +287,11 @@ class _ResultsScreenState extends State<ResultsScreen> {
         final eyeTrackingData = _cameraService.generateEyeTrackingData();
         print("👁️ Eye tracking data: $eyeTrackingData");
 
+        print("📂 Checking eye frame files...");
+        for (final path in capturedPaths) {
+          print("   ${await File(path).exists() ? "✅ Found" : "❌ Missing"} $path");
+        }
+
         // 🔹 Only analyze images from eye_frames
         EyeAnalysisResult? eyeAnalysis;
         for (final imagePath in capturedPaths) {
@@ -319,6 +324,10 @@ class _ResultsScreenState extends State<ResultsScreen> {
             eyeAnalysis: eyeAnalysis,
           );
           print("✅ ML Analysis (with eye_frames): ${mlResult.diagnosis}");
+         // print("✅ Test Diagnosis: ${mlResult.diagnosis}");
+          print("🤖 AI Diagnosis: ${mlResult.aiDiagnosis}");
+          print("📌 Source: ${mlResult.source}");
+
         } catch (e) {
           print("❌ ML Analysis failed: $e");
         }
@@ -575,7 +584,7 @@ class _ResultsScreenState extends State<ResultsScreen> {
           const SizedBox(height: 24),
           _buildDiagnosisCard(
             title: "Phân tích AI",
-            diagnosis: result.aiDiagnosis ?? "Không có dữ liệu",
+            diagnosis: result.aiDiagnosis ?? "Lỗi phân tích. Vui lòng thử lại sau.",
             color: Colors.blue,
           ),
 
@@ -584,7 +593,7 @@ class _ResultsScreenState extends State<ResultsScreen> {
           _buildAIAnalysisCard(
             result.eyeAnalysis ??
                 EyeAnalysisResult(
-                  condition: "Không có dữ liệu",
+                  condition: "Lỗi phân tích. Vui lòng thử lại sau.",
                   confidence: 0.0,
                   riskFactors: [],
                   recommendations: [],

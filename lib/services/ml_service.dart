@@ -137,16 +137,12 @@ class MLService {
 
   // Supported fundus conditions
   static const List<String> _fundusLabels = [
-    'Central Serous Chorioretinopathy [Color Fundus]',
-    'Diabetic Retinopathy',
-    'Disc Edema',
-    'Glaucoma',
-    'Healthy',
-    'Macular Scar',
-    'Myopia',
-    'Pterygium',
-    'Retinal Detachment',
-    'Retinitis Pigmentosa'
+    '1_normal',
+    '2_cataract',
+    '2_glaucoma',
+    '3_retina_disease'
+
+
   ];
 
   // Supported outer eye conditions
@@ -161,11 +157,11 @@ class MLService {
   Future<void> _loadFundusModel() async {
     try {
       _fundusInterpreter = await Interpreter.fromAsset(
-        'assets/models/eye_effnet_fp32.tflite',
+        'assets/models/fundus_model.tflite',
         options: InterpreterOptions()..threads = 2, // optional
       );
-      print("📂 Loading model: models/eye_effnet_fp32.tflite");
-      print("📏 File exists? ${await rootBundle.load('assets/models/eye_effnet_fp32.tflite')}");
+      print("📂 Loading model: models/fundus_model.tflite");
+      print("📏 File exists? ${await rootBundle.load('assets/models/fundus_model.tflite')}");
       _isFundusLoaded = true;
       print("✅ Fundus model loaded");
     } catch (e) {
@@ -308,6 +304,8 @@ class MLService {
     final riskFactors = _generateRiskFactors(predictedCondition);
     final recommendations =
     _generateRecommendations(predictedCondition, confidence);
+    print("Confidence: $confidence");
+    print("Predicted condition: $predictedCondition");
 
     return EyeAnalysisResult(
       condition: predictedCondition,
@@ -383,6 +381,7 @@ class MLService {
       default:
         recs.add("Maintain regular eye checkups.");
     }
+    print("Recommended actions: $recs");
     return recs;
   }
 
@@ -417,11 +416,11 @@ class MLService {
     final riskLevel = _determineRiskLevel(score);
     final diagnosis = _generateDiagnosis(score);
     final recs = _generateVisionRecommendations(score, eyeAnalysis);
-    String? aiDiagnosis;
-    if (eyeAnalysis != null) {
-      aiDiagnosis = "Detected: ${eyeAnalysis.condition.replaceAll('_', ' ').toUpperCase()} "
-          "(Confidence: ${(eyeAnalysis.confidence * 100).toInt()}%)";
-    }
+    final aiDiagnosis = (eyeAnalysis != null)
+        ? "Detected: ${eyeAnalysis.condition.replaceAll('_', ' ').toUpperCase()} "
+        "(Confidence: ${(eyeAnalysis.confidence * 100).toInt()}%)"
+        : "Không có dữ liệu AI";
+
     return VisionAnalysisResult(
       visionScore: score,
       riskLevel: riskLevel,

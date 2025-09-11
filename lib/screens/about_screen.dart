@@ -131,7 +131,7 @@ class AboutScreen extends StatelessWidget {
                   ),
                   const SizedBox(height: 8),
                   Text(
-                    '© 2024 Ứng dụng Kiểm tra Thị lực. Tất cả quyền được bảo lưu.',
+                    '© 2025 Ứng dụng Kiểm tra Thị lực. Tất cả quyền được bảo lưu.',
                     style: TextStyle(
                       fontSize: 14,
                       color: Colors.grey.shade600,
