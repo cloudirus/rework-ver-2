@@ -1,4 +1,4 @@
-# desertstorm
+# Desertstorm
 
 A desertstorm Flutter project.
 
