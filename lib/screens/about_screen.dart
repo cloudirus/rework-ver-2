@@ -38,7 +38,7 @@ class AboutScreen extends StatelessWidget {
                   ),
                   const SizedBox(height: 16),
                   const Text(
-                    'Ứng dụng Kiểm tra Thị lực',
+                    'Ứng dụng Kiểm tra Tật khúc xạ',
                     style: TextStyle(
                       fontSize: 28,
                       fontWeight: FontWeight.bold,
@@ -58,7 +58,7 @@ class AboutScreen extends StatelessWidget {
             const SizedBox(height: 32),
             _buildSection(
               title: 'Giới thiệu Ứng dụng',
-              content: 'Ứng dụng Kiểm tra Thị lực là công cụ kiểm tra mắt toàn diện sử dụng phân tích AI để đánh giá thị lực của bạn. Ứng dụng bao gồm kiểm tra biểu đồ Snellen để đo thị lực và kiểm tra lưới Amsler để tầm soát thoái hóa hoàng điểm.',
+              content: 'Ứng dụng Kiểm tra Tật khúc xạ là công cụ kiểm tra mắt toàn diện sử dụng phân tích AI để đánh giá thị lực của bạn. Ứng dụng bao gồm kiểm tra biểu đồ Snellen để đo thị lực và kiểm tra lưới Amsler để tầm soát thoái hóa hoàng điểm.',
             ),
             _buildSection(
               title: 'Tính năng',
@@ -131,7 +131,7 @@ class AboutScreen extends StatelessWidget {
                   ),
                   const SizedBox(height: 8),
                   Text(
-                    '© 2025 Ứng dụng Kiểm tra Thị lực. Tất cả quyền được bảo lưu.',
+                    '© 2025 Ứng dụng Kiểm tra Tật khúc xạ. Tất cả quyền được bảo lưu.',
                     style: TextStyle(
                       fontSize: 14,
                       color: Colors.grey.shade600,

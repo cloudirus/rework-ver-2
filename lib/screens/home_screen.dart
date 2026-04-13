@@ -82,17 +82,17 @@ class _HomeScreenState extends State<HomeScreen> with WidgetsBindingObserver {
     _stats = OverallStats.fromJson(data);
     });
     } else {
-    print("⚠️ overall.json not found in ${dir.path}/run_history/overall");
+    print("overall.json not found in ${dir.path}/run_history/overall");
     }
     } catch (e) {
-    print("⚠️ Failed to load overall stats: $e");
+    print("Failed to load overall stats: $e");
     }
   }
 
   @override
   Widget build(BuildContext context) {
     return Scaffold(
-      appBar: const AppHeader(title: 'Ứng dụng Kiểm tra Thị lực'),
+      appBar: const AppHeader(title: 'Ứng dụng Kiểm tra Tật khúc xạ'),
       body: RefreshIndicator(
         onRefresh: _loadStats, // <-- pull down to refresh
         child: SingleChildScrollView(
@@ -433,7 +433,7 @@ class _HomeScreenState extends State<HomeScreen> with WidgetsBindingObserver {
     String actionText;
 
     if (totalTests == 0) {
-      reminderText = 'Chào mừng đến với Ứng dụng Kiểm tra Thị lực! Thực hiện kiểm tra thị lực toàn diện đầu tiên để theo dõi sức khỏe mắt của bạn.';
+      reminderText = 'Chào mừng đến với Ứng dụng Kiểm tra Tật khúc xạ! Thực hiện kiểm tra các tật khúc xạ phổ biến toàn diện đầu tiên để theo dõi sức khỏe mắt của bạn.';
       actionText = 'Bắt đầu Kiểm tra Đầu tiên';
     } else {
       final daysSinceLastTest = lastTestDate != null
