@@ -55,7 +55,7 @@ class _SplashScreenState extends State<SplashScreen>
 
   void _navigateToNext() {
     // Demo always shows onboarding - check first launch in production
-    final isFirstLaunch = true; // You would check SharedPreferences here
+    final isFirstLaunch = true;
     
     Navigator.of(context).pushReplacement(
       PageRouteBuilder(

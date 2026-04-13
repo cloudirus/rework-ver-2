@@ -53,34 +53,18 @@ class _QuestionnaireScreenState extends State<QuestionnaireScreen> {
     var current = sessionManager.getCurrentSession();
     current ??= sessionManager.startNewSession();
 
-
-// Create one TestResult per question and add to session
-//     final now = DateTime.now();
-//     for (int i = 0; i < _questions.length; i++) {
-//       final q = _questions[i];
-//       final questionText = q['question']?.toString() ?? 'Question $i';
-//       final selected = _answers[i] ?? '';
-//
-
-// Build TestResult: line is question index, letter is question text marker
       for (int i = 0; i < _answers.length; i++) {
         final response = _answers[i] ?? "";
         final tr = TestResult(
           line: i,
           letter: "Questionnaire",
-          userResponse: response,  // ✅ store each answer separately
+          userResponse: response,  //store each answer separately
           isCorrect: true,
           timestamp: DateTime.now(),
         );
         _sessionManager.addQuestionnaireResult(tr);
       }
 
-
-// Optionally save sessions / navigate to results
-// If you have SessionStorage or _testDataService in your app, call those here.
-
-
-// Navigate to Results screen (if you want)
     if (!mounted) return;
     Navigator.push(
       context,
@@ -106,13 +90,13 @@ class _QuestionnaireScreenState extends State<QuestionnaireScreen> {
     final options = question["options"] as List<dynamic>;
 
     return Scaffold(
-      backgroundColor: const Color(0xFFF7F7F7), // pastel background
+      backgroundColor: const Color(0xFFF7F7F7),
       appBar: AppBar(
         elevation: 0,
         backgroundColor: Colors.blue,
-        centerTitle: false, // make sure it's left-aligned
+        centerTitle: false,
         title: Row(
-          mainAxisSize: MainAxisSize.min, // keeps content compact on the left
+          mainAxisSize: MainAxisSize.min,
           children: const [
             Icon(Icons.remove_red_eye, color: Colors.white),
             SizedBox(width: 8),

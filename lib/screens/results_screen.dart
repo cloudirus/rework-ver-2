@@ -138,17 +138,17 @@ class _ResultsScreenState extends State<ResultsScreen> {
     final timestamp = _formattedTimestamp();
     final zipPath = path.join(appDir.path, '${timestamp}_eye_frames.zip');
 
-    // 🗑️ Delete old zip if exists
+    // Delete old zip if exists
     final oldZip = File(zipPath);
     if (await oldZip.exists()) {
       await oldZip.delete();
-      print('🗑️ Old ZIP deleted at $zipPath');
+      print('Old ZIP deleted at $zipPath');
     }
 
     final archive = Archive();
 
     if (await saveDir.exists()) {
-      print("📂 eye_frames folder exists: ${saveDir.path}");
+      print("eye_frames folder exists: ${saveDir.path}");
 
       await for (final entity in saveDir.list(recursive: true, followLinks: false)) {
         if (entity is File) {
@@ -158,61 +158,22 @@ class _ResultsScreenState extends State<ResultsScreen> {
           final relativePath = path.relative(entity.path, from: saveDir.path);
 
           archive.addFile(ArchiveFile(relativePath, bytes.length, bytes));
-          print("➕ Added to archive: $relativePath");
+          print("Added to archive: $relativePath");
         }
       }
     } else {
-      print("⚠️ eye_frames folder does NOT exist!");
+      print("eye_frames folder does NOT exist!");
     }
 
     // Encode and write the zip
     final zipData = ZipEncoder().encode(archive);
     final zipFile = File(zipPath)..writeAsBytesSync(zipData);
 
-    print('📦 New ZIP created at $zipPath');
+    print('New ZIP created at $zipPath');
     return zipFile;
   }
 
 
-  Future<void> uploadFolderAndJson() async {
-    final appDir = await getApplicationDocumentsDirectory();
-
-    final timestamp = _formattedTimestamp();
-    final jsonPath = path.join(appDir.path, '${timestamp}_sessions.json');
-
-    // copy sessions.json → timestamp_sessions.json
-    final originalJson = File(path.join(appDir.path, 'sessions.json'));
-    if (await originalJson.exists()) {
-      await originalJson.copy(jsonPath);
-    }
-
-    final zipFile = await zipEyeCapturesFolder();
-
-    final uri = Uri.parse("https://desertstromsft.ngrok.app/upload");
-    var request = http.MultipartRequest('POST', uri);
-
-    // Add JSON
-    request.files.add(await http.MultipartFile.fromPath(
-      'session',
-      jsonPath,
-      contentType: MediaType('application', 'json'),
-    ));
-
-    // Add ZIP
-    request.files.add(await http.MultipartFile.fromPath(
-      'images_zip',
-      zipFile.path,
-      contentType: MediaType('application', 'zip'),
-    ));
-
-    final response = await request.send();
-
-    if (response.statusCode == 200) {
-      print("✅ Upload successful");
-    } else {
-      print("❌ Upload failed: ${response.statusCode}");
-    }
-  }
 
   Future<void> _fileCleanup() async {
     print("File cleanup initialized");
@@ -273,48 +234,47 @@ class _ResultsScreenState extends State<ResultsScreen> {
 
       final currentSession = _sessionManager.getCurrentSession();
       if (currentSession != null) {
-        print("📌 Current session loaded: ${currentSession.sessionId}");
+        print("Current session loaded: ${currentSession.sessionId}");
 
         _testDataService.addCompletedSession(currentSession);
         await SessionStorage.saveSessions([currentSession]);
         await _cameraService.saveAllCapturedImages();
-        uploadFolderAndJson();
 
-        // 🔹 Force load from eye_frames
+        // Force load from eye_frames
         final capturedPaths = await _getEyeFrameImages();
-        print("📸 Forced eye_frames paths: $capturedPaths");
+        print("Forced eye_frames paths: $capturedPaths");
 
         final eyeTrackingData = _cameraService.generateEyeTrackingData();
-        print("👁️ Eye tracking data: $eyeTrackingData");
+        print("Eye tracking data: $eyeTrackingData");
 
-        print("📂 Checking eye frame files...");
+        print("Checking eye frame files...");
         for (final path in capturedPaths) {
-          print("   ${await File(path).exists() ? "✅ Found" : "❌ Missing"} $path");
+          print("   ${await File(path).exists() ? "Found" : "Missing"} $path");
         }
 
-        // 🔹 Only analyze images from eye_frames
+        // Only analyze images from eye_frames
         EyeAnalysisResult? eyeAnalysis;
         for (final imagePath in capturedPaths) {
           try {
             final result = await _mlService.analyzeEyeImage(imagePath);
-            print("🔍 Analyzed $imagePath → ${result.condition} (${result.confidence})");
+            print("Analyzed $imagePath → ${result.condition} (${result.confidence})");
 
             // keep highest-confidence result
             if (eyeAnalysis == null || result.confidence > eyeAnalysis.confidence) {
               eyeAnalysis = result;
             }
           } catch (e) {
-            print("❌ Analysis failed on $imagePath: $e");
+            print("Analysis failed on $imagePath: $e");
           }
         }
 
-        // 1. Test-based analysis
+        // Test based analysis
         final testBasedResult = await _createTestBasedAnalysis();
         final int correctAnswers = currentSession.correctAnswers;
         final int totalQuestions = currentSession.totalQuestions;
-        print("📝 Test based result: $testBasedResult");
+        print("Test based result: $testBasedResult");
 
-        // 2. Gọi AI service
+        // Call AI service
         VisionAnalysisResult? mlResult;
         try {
           mlResult = await _mlService.analyzeVisionTest(
@@ -324,15 +284,15 @@ class _ResultsScreenState extends State<ResultsScreen> {
             eyeAnalysis: eyeAnalysis,
           );
           print("✅ ML Analysis (with eye_frames): ${mlResult.diagnosis}");
-         // print("✅ Test Diagnosis: ${mlResult.diagnosis}");
-          print("🤖 AI Diagnosis: ${mlResult.aiDiagnosis}");
-          print("📌 Source: ${mlResult.source}");
+         // print("Test Diagnosis: ${mlResult.diagnosis}");
+          print("Diag: ${mlResult.aiDiagnosis}");
+          print("Source: ${mlResult.source}");
 
         } catch (e) {
-          print("❌ ML Analysis failed: $e");
+          print("ML analysis failed: $e");
         }
 
-        // 3. Merge kết quả
+        // Merge result
         VisionAnalysisResult finalResult;
         if (mlResult != null) {
           finalResult = testBasedResult.copyWith(
@@ -353,7 +313,7 @@ class _ResultsScreenState extends State<ResultsScreen> {
           });
         }
 
-        print("🎉 Final Result: $_analysisResult");
+        print("Final result: $_analysisResult");
       }
     } catch (e, s) {
       print("Error analyzing results: $e");
@@ -372,7 +332,7 @@ class _ResultsScreenState extends State<ResultsScreen> {
     final dir = Directory('${appDir.path}/eye_frames/crop');
 
     if (!await dir.exists()) {
-      print("⚠️ eye_frames directory not found at ${dir.path}");
+      print("eye_frames directory not found at ${dir.path}");
       return [];
     }
 
@@ -383,80 +343,9 @@ class _ResultsScreenState extends State<ResultsScreen> {
         .map((f) => f.path)
         .toList();
 
-    files.sort(); // optional: ensures chronological order
-    print("📸 Found ${files.length} eye_frames: $files");
+    files.sort();
+    print("Found ${files.length} eye_frames: $files");
     return files;
-  }
-
-  double _weightBasedOnQuestionnare(
-      List<TestResult> questionnaireResults, List<dynamic> questions) {
-    int totalScore = 0;
-
-    // Case A: your current storage (ONE TestResult with a Map-like string)
-    if (questionnaireResults.length == 1 &&
-        questionnaireResults.first.userResponse.trim().startsWith('{')) {
-      final raw = questionnaireResults.first.userResponse.trim();
-
-      // Matches:  "<qIndex>: <answerText>"  and stops before ", <nextIndex>:" or "}"
-      final entryRe = RegExp(r'(\d+):\s*(.*?)(?=,\s*\d+:|\s*\}$)');
-      final matches = entryRe.allMatches(raw);
-
-      for (final m in matches) {
-        final qIndex = int.tryParse(m.group(1)!);
-        if (qIndex == null || qIndex < 0 || qIndex >= questions.length) continue;
-
-        String ansText = m.group(2)!.trim();
-
-        // 1) Prefer numeric prefix in the answer itself: "1. ..." / "2. ..." / "3. ..."
-        final numPrefix = RegExp(r'^\s*(\d+)\.').firstMatch(ansText);
-        if (numPrefix != null) {
-          totalScore += int.parse(numPrefix.group(1)!);
-          continue;
-        }
-
-        // 2) Fallback: match against the question options ignoring the numeric prefix
-        final opts = List<String>.from(questions[qIndex]['options']).cast<String>();
-        String stripPrefix(String s) =>
-            s.replaceFirst(RegExp(r'^\s*\d+\.\s*'), '').trim();
-
-        final ansNoPrefix = stripPrefix(ansText);
-        final idx = opts.map(stripPrefix).toList().indexOf(ansNoPrefix);
-        if (idx != -1) {
-          totalScore += (idx + 1); // option # -> points
-        }
-      }
-    } else {
-      // Case B: future-proof — one TestResult per question
-      for (int i = 0; i < questionnaireResults.length && i < questions.length; i++) {
-        final ansText = questionnaireResults[i].userResponse.trim();
-
-        final numPrefix = RegExp(r'^\s*(\d+)\.').firstMatch(ansText);
-        if (numPrefix != null) {
-          totalScore += int.parse(numPrefix.group(1)!);
-          continue;
-        }
-
-        final opts = List<String>.from(questions[i]['options']).cast<String>();
-        String stripPrefix(String s) =>
-            s.replaceFirst(RegExp(r'^\s*\d+\.\s*'), '').trim();
-
-        final idx = opts.map(stripPrefix).toList().indexOf(stripPrefix(ansText));
-        if (idx != -1) totalScore += (idx + 1);
-      }
-    }
-    print("Total score is $totalScore");
-    double weight = 0.00;
-    if (totalScore <= 20) {
-      weight = 1;
-      print("Weight set at 1");
-    } else if (totalScore <= 40) {
-      weight = 0.85;
-      print("Weight set at 0.95");
-    } else {
-      weight = 0.7;
-      print("Weight set at 0.9");
-    }
-    return weight;
   }
 
   Future<VisionAnalysisResult> _createTestBasedAnalysis() async {
@@ -508,21 +397,13 @@ class _ResultsScreenState extends State<ResultsScreen> {
       ];
     }
 
-    // final log = AnalysisResultLog(
-    //   accuracy: accuracy,
-    //   riskLevel: riskLevel,
-    //   diagnosis: diagnosis,
-    //   timestamp: DateTime.now(),
-    // );
-    // AnalysisResultStorage.saveResult(log);
-
     return VisionAnalysisResult(
       visionScore: accuracy,
       riskLevel: riskLevel,
       diagnosis: diagnosis,
       recommendations: recommendations,
-      confidence: 0.85, // Base confidence on test reliability
-      eyeAnalysis: null, // Don't include AI analysis in results
+      confidence: 0.85, // base confidence on test reliability
+      eyeAnalysis: null, // not include AI analysis in results
     );
   }
 
@@ -602,51 +483,12 @@ class _ResultsScreenState extends State<ResultsScreen> {
 
 
 
-          // ✅ thêm chỗ này
           const SizedBox(height: 24),
           _buildActionButtons(),
         ],
       ),
     );
   }
-
-
-
-  // Widget _buildHeader() {
-  //   return Container(
-  //     width: double.infinity,
-  //     padding: const EdgeInsets.all(16),
-  //     decoration: BoxDecoration(
-  //       gradient: LinearGradient(
-  //         colors: [Colors.blue.shade500, Colors.blue.shade700],
-  //         begin: Alignment.topLeft,
-  //         end: Alignment.bottomRight,
-  //       ),
-  //       borderRadius: BorderRadius.circular(12),
-  //     ),
-  //     child: Column(
-  //       crossAxisAlignment: CrossAxisAlignment.start,
-  //       children: [
-  //         Text(
-  //           widget.testType,
-  //           style: const TextStyle(
-  //             fontSize: 24,
-  //             fontWeight: FontWeight.bold,
-  //             color: Colors.white,
-  //           ),
-  //         ),
-  //         const SizedBox(height: 8),
-  //         Text(
-  //           'Kiểm tra hoàn thành vào ${_formatDate(widget.testStartTime)}',
-  //           style: const TextStyle(
-  //             fontSize: 14,
-  //             color: Colors.white70,
-  //           ),
-  //         ),
-  //       ],
-  //     ),
-  //   );
-  // }
 
   Widget _buildScoreCard(VisionAnalysisResult result) {
     Color scoreColor = result.riskLevel == 'Low'
@@ -795,7 +637,6 @@ class _ResultsScreenState extends State<ResultsScreen> {
       );
     }
 
-    // 👉 fallback to your current "normal / abnormal" display
     Color conditionColor =
     eyeAnalysis.condition == 'normal' ? Colors.green : Colors.orange;
 
@@ -1054,9 +895,5 @@ class _ResultsScreenState extends State<ResultsScreen> {
         ],
       ),
     );
-  }
-
-  String _formatDate(DateTime date) {
-    return '${date.day}/${date.month}/${date.year} at ${date.hour}:${date.minute.toString().padLeft(2, '0')}';
   }
 }

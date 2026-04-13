@@ -47,7 +47,7 @@ class _SnellenTestScreenState extends State<SnellenTestScreen> {
   }
 
   Future<void> _initCamera() async {
-    print("📷 Camera initializing...");
+    print("Camera initializing...");
     final cameras = await availableCameras();
     final frontCamera = cameras.firstWhere(
           (cam) => cam.lensDirection == CameraLensDirection.front,
@@ -59,33 +59,6 @@ class _SnellenTestScreenState extends State<SnellenTestScreen> {
     });
   }
 
-
-
-  // Future<void> _initializeCamera() async {
-  //   if (cameras.isNotEmpty) {
-  //     CameraDescription? frontCamera;
-  //     for (final camera in cameras) {
-  //       if (camera.lensDirection == CameraLensDirection.front) {
-  //         frontCamera = camera;
-  //         break;
-  //       }
-  //     }
-  //
-  //     _cameraController = CameraController(
-  //       frontCamera ?? cameras.first, // Use front camera if available, otherwise fallback to first camera
-  //       ResolutionPreset.medium,
-  //     );
-  //
-  //     try {
-  //       await _cameraController!.initialize();
-  //       setState(() {
-  //         _isCameraInitialized = true;
-  //       });
-  //     } catch (e) {
-  //       print('Error initializing camera: $e');
-  //     }
-  //   }
-  // }
 
   @override
   void dispose() {
@@ -404,16 +377,16 @@ class _SnellenTestScreenState extends State<SnellenTestScreen> {
   }
   double _getLetterSize(int line) {
     print("Getting letter size");
-    // Approximate mapping of Snellen chart sizes (in logical pixels)
+    // approximate mapping of Snellen chart sizes (in px)
     const List<double> sizes = [
-      57, // 20/200 (largest)
+      57, // 20/200
       29, // 20/100
       20, // 20/70
       15, // 20/50
       11, // 20/40
       9,  // 20/30
       7,  // 20/25
-      6,  // 20/20 (smallest)
+      6,  // 20/20
     ];
     print('Line: $line, Size: ${sizes[line]}');
     return sizes[line];

@@ -178,7 +178,7 @@ class _HistoryScreenState extends State<HistoryScreen> {
       ),
       body: Column(
         children: [
-          // === Blue Stats Bar ===
+          // stats bar
           Container(
             color: Colors.blue,
             padding: const EdgeInsets.symmetric(vertical: 16, horizontal: 12),
@@ -192,7 +192,7 @@ class _HistoryScreenState extends State<HistoryScreen> {
             ),
           ),
 
-          // === History List ===
+          // history
           Expanded(
             child: _history.isEmpty
                 ? Center(
@@ -256,7 +256,7 @@ class _HistoryScreenState extends State<HistoryScreen> {
             ),
           ),
 
-          // === Footer Clear Button ===
+          // clear
           if (_history.isNotEmpty)
             Padding(
               padding: const EdgeInsets.all(16.0),

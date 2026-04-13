@@ -13,7 +13,7 @@ class OverallStats {
   final int lowRiskCount;
   final int mediumRiskCount;
   final int highRiskCount;
-  final DateTime? lastTestDate; // ✅ add this
+  final DateTime? lastTestDate;
 
   OverallStats({
     required this.totalTest,
@@ -364,7 +364,7 @@ class _HomeScreenState extends State<HomeScreen> with WidgetsBindingObserver {
               ),
               TextButton(
                 onPressed: () {
-                  // Navigate to history screen
+                  // to history screen
                   Navigator.push(
                     context,
                     MaterialPageRoute(builder: (context) => const HistoryScreen()),

@@ -48,7 +48,7 @@ class TestSession {
   bool get isAmslerComplete => amslerResults.isNotEmpty;
   bool get isComplete => isSnellenComplete && isAmslerComplete;
 
-  // --- JSON serialization ---
+  // serializing json
   Map<String, dynamic> toJson() {
     return {
       "sessionId": sessionId,

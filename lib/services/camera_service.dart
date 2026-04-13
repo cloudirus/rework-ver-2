@@ -45,7 +45,7 @@ class CameraService {
       enableAudio: false,
     );
     await _cameraController!.initialize();
-    print("📷 Camera started");
+    print("Camera started");
     _startEyeTracking();
     return _cameraController!;
   }
@@ -54,7 +54,7 @@ class CameraService {
     if (_cameraController != null) {
       await _cameraController!.dispose();
       _cameraController = null;
-      print("🛑 Camera fully stopped");
+      print("Camera fully stopped");
     }
   }
 
@@ -62,7 +62,7 @@ class CameraService {
 
   void _startEyeTracking() {
     if (_cameraController == null || !_cameraController!.value.isInitialized) {
-      print("⚠️ Camera not initialized for eye tracking");
+      print("Camera not initialized for eye tracking");
       return;
     }
 
@@ -97,19 +97,18 @@ class CameraService {
             _eyeTrackingData.removeAt(0);
           }
 
-          print("👁 Eye tracked: Blink=${eyeData.isBlinking}, "
+          print("Eye tracked: Blink=${eyeData.isBlinking}, "
               "Left=(${eyeData.leftEyeX},${eyeData.leftEyeY})");
 
-          // ✅ Eye cropping + AI analysis
           final String? eyePath =  await _saveEyeCrop(image, face);
           if (eyePath != null) {
             final analysis = await MLService().analyzeEyeImage(eyePath);
             _eyeAnalyses.add(analysis);
-            print("🤖 AI Eye Analysis Result: $analysis");
+            print("AI Eye Analysis Result: $analysis");
           }
         }
       } catch (e) {
-        print("⚠️ Eye tracking error: $e");
+        print("Eye tracking error: $e");
       } finally {
         isProcessingFrame = false;
       }
@@ -124,10 +123,10 @@ class CameraService {
 
     final Uint8List nv21 = Uint8List(ySize + uvSize * 2);
 
-    // Y plane (full size)
+    // full size Y plane
     nv21.setRange(0, ySize, image.planes[0].bytes);
 
-    // UV planes: Android camera gives U and V separately
+    // UV planes cuz android camera gives U and V separately
     final u = image.planes[1].bytes;
     final v = image.planes[2].bytes;
 
@@ -139,7 +138,7 @@ class CameraService {
 
     return nv21;
   }
-  // Chuyển CameraImage (YUV420) thành ảnh RGB để crop/lưu
+  // convert CameraImage (YUV420) to RGB for crop/save
   img.Image _convertYUV420ToImage(CameraImage image) {
     final width = image.width;
     final height = image.height;
@@ -180,7 +179,7 @@ class CameraService {
 
   }
 
-  // Convert CameraImage → InputImage for ML Kit
+  // Convert CameraImage to InputImage for ML Kit
   InputImage _convertCameraImage(CameraImage image, CameraController controller) {
     final imageRotation =
         InputImageRotationValue.fromRawValue(controller.description.sensorOrientation)
@@ -218,13 +217,13 @@ class CameraService {
 
 
 
-  // ⚡ Public getter
+  // Public getter
   List<EyeTrackingData> getEyeTrackingData() => List.from(_eyeTrackingData);
 
   Future<String?> captureEyeImage({String? testType}) async {
     final cameraController = _cameraController;
     if (cameraController == null || !cameraController.value.isInitialized) {
-      print('⚠️ Camera not initialized');
+      print('Camera not initialized');
       return null;
     }
 
@@ -241,11 +240,11 @@ class CameraService {
       final File savedImage = await File(imageFile.path).copy(imagePath);
       _capturedImages.add(savedImage.path);
 
-      print('📸 Eye image captured: ${savedImage.path}');
+      print('Eye image captured: ${savedImage.path}');
       return savedImage.path;
 
     } catch (e) {
-      print('❌ Error capturing eye image: $e');
+      print('Error capturing eye image: $e');
       return null;
     } finally {
       _isCapturing = false;
@@ -261,20 +260,12 @@ class CameraService {
 
     }
     await stopCamera();
-    //   while(_stopFlag){
-    //     await captureEyeImage(cameraController, testType: testType);
-    //     await Future.delayed(Duration(seconds: 1));
-    //   }
-    // }
-    // void stopCaptureSession() {
-    //   _stopFlag = true;
   }
 
 
   Future<void> saveAllCapturedImages() async {
     final appDir = await getApplicationDocumentsDirectory();
     final saveDir = Directory('${appDir.path}/eye_frames/full');
-    // stopCaptureSession();
 
     // Create folder if it doesn't exist
     if (!await saveDir.exists()) {
@@ -288,12 +279,12 @@ class CameraService {
           final fileName = path.basename(imagePath); // keep original name
           final newPath = path.join(saveDir.path, fileName);
 
-          // Copy file into permanent folder
+          // copy to perm folder
           await file.copy(newPath);
-          print('✅ Saved image to: $newPath');
+          print('Saved image to: $newPath');
         }
       } catch (e) {
-        print('⚠️ Error saving image $imagePath: $e');
+        print('Error saving image $imagePath: $e');
       }
     }
   }
@@ -394,14 +385,14 @@ class CameraService {
 
     for (int i = 0; i < 3; i++) {
       if (_shouldStopCapturing) {
-        print("🛑 Capture stopped before iteration $i");
+        print("Capture stopped before iteration $i");
         break;
       }
 
       await Future.delayed(Duration(seconds: 10));
 
       if (_shouldStopCapturing || !cameraController.value.isInitialized) {
-        print("🛑 Skipping capture at iteration $i");
+        print("Skipping capture at iteration $i");
         break;
       }
 
@@ -414,7 +405,7 @@ class CameraService {
     _shouldStopCapturing = true;
     _captureTimer?.cancel();
     _captureTimer = null;
-    print('🛑 Periodic capture stopped');
+    print('Periodic capture stopped');
     stopCamera();
   }
 
@@ -428,7 +419,7 @@ class CameraService {
       // Try cropping eye first
       final leftEye = face.landmarks[FaceLandmarkType.leftEye];
       if (leftEye == null) {
-        print("⚠️ No eye landmark found, saving face instead");
+        print("No eye landmark found, saving face instead");
         crop = img.copyCrop(
           image,
           x: face.boundingBox.left.toInt(),
@@ -447,7 +438,7 @@ class CameraService {
         );
       }
 
-      // Save to temp file
+      // save to temp
       final appDir = await getApplicationDocumentsDirectory();
       final dir = Directory('${appDir.path}/eye_frames/crop');
       if (!await dir.exists()) {
@@ -456,10 +447,10 @@ class CameraService {
 
       final path = '${dir.path}/eye_${DateTime.now().millisecondsSinceEpoch}.jpg';
       final file = File(path)..writeAsBytesSync(img.encodeJpg(crop));
-      print("📸 Saved crop at: $path");
+      print("Saved crop at: $path");
       return file.path;
     } catch (e) {
-      print("❌ Error in _saveEyeCrop: $e");
+      print("Error in _saveEyeCrop: $e");
       return null;
     }
   }
@@ -467,12 +458,11 @@ class CameraService {
 
   List<EyeTrackingData> generateEyeTrackingData() {
     if (_eyeTrackingData.isNotEmpty) {
-      return List.from(_eyeTrackingData); // ✅ real tracked data
+      return List.from(_eyeTrackingData); // real tracked data
     }
 
     // fallback mock
     final mockData = <EyeTrackingData>[];
-    final now = DateTime.now();
 
 
     return mockData;

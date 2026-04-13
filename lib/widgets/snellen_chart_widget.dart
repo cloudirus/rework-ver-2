@@ -68,15 +68,6 @@ class SnellenChartWidget extends StatelessWidget {
             ),
           ),
         ),
-        // const SizedBox(height: 8),
-        // // 👇 Debug text for current letter size
-        // Text(
-        //   'Size: ${_getLetterSize(currentLine).toStringAsFixed(1)}',
-        //   style: const TextStyle(
-        //     fontSize: 12,
-        //     color: Colors.grey,
-        //   ),
-        // ),
         const SizedBox(height: 24),
         
         const Text(
@@ -124,16 +115,15 @@ class SnellenChartWidget extends StatelessWidget {
 
   double _getLetterSize(int line) {
     print("Getting letter size");
-    // Approximate mapping of Snellen chart sizes (in logical pixels)
     const List<double> sizes = [
-      57, // 20/200 (largest)
+      57, // 20/200
       29, // 20/100
       20, // 20/70
       15, // 20/50
       11, // 20/40
       9,  // 20/30
       7,  // 20/25
-      6,  // 20/20 (smallest)
+      6,  // 20/20
     ];
     print('Line: $line, Size: ${sizes[line]}');
     return sizes[line];

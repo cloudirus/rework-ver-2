@@ -132,8 +132,6 @@ class MLService {
   // Input dimensions and model paths
   static const int _inputSize = 224;
   static const int _numChannels = 3;
-  static const String _fundusModelPath = 'assets/models/eye_effnet_fp16.tflite';
-  static const String _outerModelPath = 'assets/models/outer_eye_effnet.tflite';
 
   // Supported fundus conditions
   static const List<String> _fundusLabels = [
@@ -160,12 +158,12 @@ class MLService {
         'assets/models/fundus_model.tflite',
         options: InterpreterOptions()..threads = 2, // optional
       );
-      print("📂 Loading model: models/fundus_model.tflite");
-      print("📏 File exists? ${await rootBundle.load('assets/models/fundus_model.tflite')}");
+      print("Loading model: models/fundus_model.tflite");
+      print("File exists? ${await rootBundle.load('assets/models/fundus_model.tflite')}");
       _isFundusLoaded = true;
-      print("✅ Fundus model loaded");
+      print("Fundus model loaded");
     } catch (e) {
-      print("❌ Error loading fundus model: $e");
+      print("Error loading fundus model: $e");
     }
   }
 
@@ -177,9 +175,9 @@ class MLService {
         options: InterpreterOptions()..threads = 2,
       );
       _isOuterLoaded = true;
-      print("✅ Outer eye model loaded");
+      print("Outer eye model loaded");
     } catch (e) {
-      print("❌ Error loading outer model: $e");
+      print("Error loading outer model: $e");
     }
   }
 
@@ -210,9 +208,9 @@ class MLService {
 
   Future<EyeAnalysisResult> analyzeEyeImage(String imagePath) async {
     if (!_isFundusLoaded || !_isOuterLoaded) {
-      print("⚠️ Models not loaded, loading now...");
+      print("Models not loaded, loading now...");
       await loadModels();
-      print('✅ Models loaded');
+      print('Models loaded');
     }
 
     try {
@@ -258,7 +256,7 @@ class MLService {
         ],
       );
     } catch (e) {
-      print('❌ Eye analysis failed: $e');
+      print('Eye analysis failed: $e');
       return EyeAnalysisResult(
         condition: 'Unknown',
         confidence: 0.0,

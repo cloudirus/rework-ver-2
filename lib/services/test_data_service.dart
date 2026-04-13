@@ -197,7 +197,7 @@ class TestDataService {
       List<dynamic> ignoredQuestions, // kept to match your old signature
       ) {
     if (questionnaireResults.isEmpty) {
-      print("📥 Questionnaire empty → default weight 1.0");
+      print("Questionnaire empty: Set default weight 1.0");
       return 1.0;
     }
 
@@ -206,13 +206,11 @@ class TestDataService {
     for (final r in questionnaireResults) {
       final response = r.userResponse.trim();
 
-      // Try to parse a leading integer: "1. ...", "2. ...", "3. ..."
-      final match = RegExp(r'^(\d+)').firstMatch(response); // <-- IMPORTANT: no double backslash
+      final match = RegExp(r'^(\d+)').firstMatch(response);
       int? value;
       if (match != null) {
         value = int.tryParse(match.group(1)!);
       } else {
-        // Fallbacks in case of weird whitespace or formatting
         if (response.startsWith('1')) {
           value = 1;
         } else if (response.startsWith('2')) {value = 2;}
@@ -220,17 +218,19 @@ class TestDataService {
       }
 
       if (value == null) {
-        print('⚠️ Could not parse score from answer: "${r.userResponse}"');
+        print('Could not parse score from answer: "${r.userResponse}"');
         continue;
       }
 
       totalScore += value;
     }
 
-    print("🧮 Questionnaire answers: ${questionnaireResults.length}, totalScore = $totalScore");
+    print("Questionnaire answers: ${questionnaireResults.length}, totalScore = $totalScore");
 
-    // Category → weight
-    // 0–10 → 1.0 | 11–20 → 0.95 | >20 → 0.9
+    // category | weight
+    // 0–10 | 1.0
+    // 11–20 | 0.95
+    // >20 | 0.9
     if (totalScore <= 20) return 1.0;
     if (totalScore <= 40) return 0.85;
     return 0.7;
@@ -240,7 +240,6 @@ class TestDataService {
   double calculateSnellenScore(List<TestResult> results) {
     if (results.isEmpty) return 0.0;
 
-    // final visionLevels = ['20/200', '20/100', '20/70', '20/50', '20/40', '20/30', '20/25', '20/20'];
     int bestLine = -1;
 
     for (final result in results) {
@@ -249,7 +248,7 @@ class TestDataService {
       }
     }
 
-    if (bestLine == -1) return 0.1; // Very poor vision if no correct answers
+    if (bestLine == -1) return 0.1; // basically blind if no correct answer
 
     switch (bestLine) {
       case 0: return 0.2; // 20/200
